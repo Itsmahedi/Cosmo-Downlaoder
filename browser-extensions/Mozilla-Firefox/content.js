@@ -163,6 +163,8 @@ function attachCosmoDownloadButton(videoEl) {
   btn.className = "cosmo-video-download-btn";
   btn.type = "button";
   btn.setAttribute("aria-label", "Download Video with Cosmo Downloader");
+  btn.setAttribute("aria-haspopup", "true");
+  btn.setAttribute("aria-expanded", "false");
 
   const logoImg = document.createElement("img");
   try {
@@ -254,29 +256,73 @@ function attachCosmoDownloadButton(videoEl) {
   menu.appendChild(footerDiv);
 
   // Prevent parent player events from interfering or closing the menu
-  ["pointerdown", "mousedown", "mouseup", "click"].forEach((evtName) => {
+  // capture-phase stopPropagation on pointerdown, mousedown, mouseup, pointerup, click
+  const CAPTURE_STOP_EVENTS = ["pointerdown", "mousedown", "mouseup", "pointerup", "click"];
+  CAPTURE_STOP_EVENTS.forEach((evtName) => {
     container.addEventListener(evtName, (e) => {
       e.stopPropagation();
     });
+    btn.addEventListener(evtName, (e) => {
+      e.stopPropagation();
+    }, { capture: true });
   });
 
-  // Toggle dropdown on button click
+  const openMenu = () => {
+    container.classList.add("open");
+    btn.setAttribute("aria-expanded", "true");
+
+    // Flip menu above button if it would overflow viewport bottom
+    try {
+      const btnRect = btn.getBoundingClientRect();
+      const menuEstimatedHeight = 320;
+      const spaceBelow = window.innerHeight - btnRect.bottom;
+      const spaceAbove = btnRect.top;
+
+      if (spaceBelow < menuEstimatedHeight && spaceAbove > spaceBelow) {
+        container.classList.add("flip-up");
+      } else {
+        container.classList.remove("flip-up");
+      }
+    } catch (_) {}
+  };
+
+  const closeMenu = () => {
+    container.classList.remove("open", "flip-up");
+    btn.setAttribute("aria-expanded", "false");
+  };
+
+  const toggleMenu = () => {
+    if (container.classList.contains("open")) {
+      closeMenu();
+    } else {
+      openMenu();
+    }
+  };
+
+  // Toggle dropdown on button click (capture phase so it runs before stopPropagation stops bubbling)
   btn.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    e.stopImmediatePropagation();
-    container.classList.toggle("open");
-  });
+    toggleMenu();
+  }, { capture: true });
 
-  // Handle Quality Selection
+  // Handle Quality Selection (auto-closes after choosing an option)
   menu.querySelectorAll(".cosmo-quality-item").forEach((item) => {
+    CAPTURE_STOP_EVENTS.forEach((evtName) => {
+      item.addEventListener(evtName, (e) => {
+        e.stopPropagation();
+      }, { capture: true });
+    });
+
     item.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      e.stopImmediatePropagation();
 
       const format = item.getAttribute("data-format");
       triggerDownload(videoEl, format);
+
+      // Auto-close menu
+      closeMenu();
 
       // Feedback animation
       const textEl = btn.querySelector(".cosmo-btn-text");
@@ -284,13 +330,11 @@ function attachCosmoDownloadButton(videoEl) {
       if (textEl) textEl.textContent = "\u2714 Sent to CosmoDownloader!";
       btn.style.background = "linear-gradient(135deg, #00C853 0%, #00f0ff 100%)";
 
-      container.classList.remove("open");
-
       setTimeout(() => {
         if (textEl) textEl.textContent = prevText;
         btn.style.background = "";
       }, 2500);
-    });
+    }, { capture: true });
   });
 
   // Keep button solidly visible during user interaction
@@ -316,15 +360,24 @@ function attachCosmoDownloadButton(videoEl) {
   menu.addEventListener("mouseenter", showBtn);
   menu.addEventListener("mousemove", showBtn);
 
-  // Close menu only when clicking outside
+  // Close menu only when clicking outside via event.composedPath().includes(container)
   const onPointerDownOutside = (e) => {
     if (!container.classList.contains("open")) return;
     const path = typeof e.composedPath === "function" ? e.composedPath() : [];
-    if (!container.contains(e.target) && !path.includes(container)) {
-      container.classList.remove("open");
+    if (!path.includes(container) && !container.contains(e.target)) {
+      closeMenu();
     }
   };
   document.addEventListener("pointerdown", onPointerDownOutside);
+
+  // Close menu on Escape key press
+  const onKeyDown = (e) => {
+    if (e.key === "Escape" && container.classList.contains("open")) {
+      closeMenu();
+      btn.focus();
+    }
+  };
+  document.addEventListener("keydown", onKeyDown);
 
   container.appendChild(btn);
   container.appendChild(menu);
@@ -335,6 +388,7 @@ function attachCosmoDownloadButton(videoEl) {
     hostContainer,
     cleanup: () => {
       document.removeEventListener("pointerdown", onPointerDownOutside);
+      document.removeEventListener("keydown", onKeyDown);
       hostContainer.removeEventListener("mouseenter", showBtn);
       hostContainer.removeEventListener("mousemove", showBtn);
       hostContainer.removeEventListener("mouseleave", handleMouseLeave);
