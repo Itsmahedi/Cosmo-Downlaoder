@@ -35,5 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Strict URL validation using `new URL()` accepting only `http:` and `https:`.
   - Compact pill button on video players with subtle cyan border dropdown quality picker.
 
+- **Packaging & Portability:**
+  - Added standalone Linux AppImage packaging (`dist/CosmoDownloader-1.11.0-x86_64.AppImage`) bundling `CosmoDownloader`, `cosmodownloader-cli`, `cosmodownloader-host`, and `libxdo.so.4`.
+  - Added automated AppImage build script [`scripts/build-appimage.sh`](file:///home/tokit/Projects/cosmo_downloader/scripts/build-appimage.sh).
+
 ## [1.10.0] - 2026-11-04
 - Initial release of Cosmo Downloader with multi-segment downloads, streaming site support, and browser extension integration.

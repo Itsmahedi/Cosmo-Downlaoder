@@ -2,10 +2,32 @@
 /target/
 **/*.rs.bk
 
-# Large binaries & installers
-ffmpeg.exe
+# Packaging, build outputs & installers
+/build/
+/dist/
 /installer/dist/
+*.AppImage
+*.deb
+*.rpm
+*.zip
+*.xpi
+*.crx
+
+# Large binaries & executables
+ffmpeg.exe
+yt-dlp.exe
 *.exe
+*.dll
+*.so
+*.dylib
+
+# Local databases and runtime state
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
 
 # Logs and temporary files
 *.log

@@ -108,8 +108,8 @@ cosmo_downloader/
 ├── Cargo.lock                          # Dependency lockfile
 ├── README.md                           # User-facing README & setup instructions
 ├── icon.ico                            # Main application icon (multi-resolution Windows ICO)
-├── ffmpeg.exe                          # Bundled ffmpeg binary for video/audio merging
-├── yt-dlp.exe                          # Bundled yt-dlp binary for streaming sites
+├── ffmpeg.exe                          # (Local/optional) Bundled ffmpeg binary (gitignored)
+├── yt-dlp.exe                          # (Local/optional) Bundled yt-dlp binary (gitignored)
 │
 ├── crates/                             # 🦀 Rust Workspace Crates
 │   ├── app/                            # 🖥️ Desktop GUI (CosmoDownloader.exe)
