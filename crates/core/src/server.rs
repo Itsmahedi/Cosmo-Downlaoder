@@ -49,6 +49,81 @@ pub fn spawn_on_demand_popup(dl_req: &ExtensionDownloadRequest) -> bool {
     false
 }
 
+/// Retrieves or generates a secure local bridge token for authorized IPC commands (such as /show).
+pub fn get_or_create_bridge_token() -> String {
+    let token_path = std::env::temp_dir().join("cosmo_bridge_token.txt");
+    if let Ok(existing) = std::fs::read_to_string(&token_path) {
+        let trimmed = existing.trim().to_string();
+        if !trimmed.is_empty() {
+            return trimmed;
+        }
+    }
+    let new_token = uuid::Uuid::new_v4().to_string();
+    let _ = std::fs::write(&token_path, &new_token);
+    new_token
+}
+
+/// Validates the Origin header. Only browser extensions (chrome-extension://, moz-extension://, extension://)
+/// or requests with no Origin (local native tools/host) are allowed. External web origins are rejected.
+fn validate_request_origin(headers_part: &str) -> Result<Option<String>, &'static str> {
+    for line in headers_part.lines() {
+        let lower = line.to_ascii_lowercase();
+        if lower.starts_with("origin:") {
+            if let Some(pos) = line.find(':') {
+                let origin = line[pos + 1..].trim();
+                if origin.is_empty() || origin == "null" {
+                    return Ok(None);
+                }
+                if origin.starts_with("chrome-extension://")
+                    || origin.starts_with("moz-extension://")
+                    || origin.starts_with("extension://")
+                {
+                    return Ok(Some(origin.to_string()));
+                } else {
+                    return Err("Forbidden: request origin is not an authorized extension");
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Verifies whether the incoming request contains the valid authorization token for /show.
+fn is_authorized_show_request(headers_part: &str, expected_token: &str) -> bool {
+    if expected_token.is_empty() {
+        return false;
+    }
+    for line in headers_part.lines() {
+        let lower = line.to_ascii_lowercase();
+        if lower.starts_with("x-cosmo-token:") {
+            if let Some(pos) = line.find(':') {
+                if line[pos + 1..].trim() == expected_token.trim() {
+                    return true;
+                }
+            }
+        }
+        if lower.starts_with("authorization:") {
+            if let Some(pos) = line.find(':') {
+                let val = line[pos + 1..].trim();
+                if val.starts_with("Bearer ") && val[7..].trim() == expected_token.trim() {
+                    return true;
+                }
+            }
+        }
+    }
+    // Check URL query param token=...
+    if let Some(first_line) = headers_part.lines().next() {
+        if let Some(pos) = first_line.find("token=") {
+            let rest = &first_line[pos + 6..];
+            let token_val = rest.split_whitespace().next().unwrap_or("").split('&').next().unwrap_or("");
+            if token_val == expected_token.trim() {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// Local HTTP server for browser extension integration.
 pub struct BridgeServer {
     queue: Arc<QueueManager>,
@@ -130,6 +205,7 @@ impl BridgeServer {
         let show_tx = self.show_tx.map(Arc::new);
         let wake_cb = self.wake_cb.clone();
         let download_wake_cb = self.download_wake_cb.clone();
+        let bridge_token = Arc::new(get_or_create_bridge_token());
 
         loop {
             tokio::select! {
@@ -145,6 +221,7 @@ impl BridgeServer {
                     let show_tx = show_tx.clone();
                     let wake_cb = wake_cb.clone();
                     let download_wake_cb = download_wake_cb.clone();
+                    let bridge_token = bridge_token.clone();
 
                     tokio::spawn(async move {
                         let mut data = Vec::new();
@@ -196,42 +273,65 @@ impl BridgeServer {
 
                         let req = String::from_utf8_lossy(&data);
 
+                        // Validate browser Origin header to block external website CSRF/cross-origin probes
+                        let allowed_origin = match validate_request_origin(&req) {
+                            Ok(orig) => orig,
+                            Err(_) => {
+                                let err_resp = "{\"error\":\"forbidden_origin\"}";
+                                let resp = format!(
+                                    "HTTP/1.1 403 Forbidden\r\n\
+                                     Content-Type: application/json\r\n\
+                                     Content-Length: {}\r\n\
+                                     Connection: close\r\n\r\n{}",
+                                    err_resp.len(),
+                                    err_resp
+                                );
+                                let _ = socket.write_all(resp.as_bytes()).await;
+                                let _ = socket.flush().await;
+                                return;
+                            }
+                        };
+
+                        let cors_header = match allowed_origin {
+                            Some(ref orig) => format!("Access-Control-Allow-Origin: {}\r\n", orig),
+                            None => "Access-Control-Allow-Origin: *\r\n".to_string(),
+                        };
+
                         // Handle CORS Preflight OPTIONS
                         if req.starts_with("OPTIONS ") {
-                            let resp = "HTTP/1.1 204 No Content\r\n\
-                                        Access-Control-Allow-Origin: *\r\n\
-                                        Access-Control-Allow-Methods: POST, GET, OPTIONS\r\n\
-                                        Access-Control-Allow-Headers: Content-Type, Authorization\r\n\
-                                        Access-Control-Allow-Private-Network: true\r\n\
-                                        Access-Control-Max-Age: 86400\r\n\
-                                        Connection: close\r\n\r\n";
+                            let resp = format!(
+                                "HTTP/1.1 204 No Content\r\n\
+                                 {}Access-Control-Allow-Methods: POST, GET, OPTIONS\r\n\
+                                 Access-Control-Allow-Headers: Content-Type, Authorization, X-Cosmo-Token\r\n\
+                                 Access-Control-Allow-Private-Network: true\r\n\
+                                 Access-Control-Max-Age: 86400\r\n\
+                                 Connection: close\r\n\r\n",
+                                cors_header
+                            );
                             let _ = socket.write_all(resp.as_bytes()).await;
                             return;
                         }
 
                         // Handle POST /download
                         if req.starts_with("POST /download") || req.starts_with("POST /api/download") {
-                            // Extract JSON body after \r\n\r\n
                             let body = req.split("\r\n\r\n").nth(1).unwrap_or_default();
 
                             match serde_json::from_str::<ExtensionDownloadRequest>(body) {
                                 Ok(dl_req) => {
-                                    // Trigger GUI download wake callback if registered
                                     if let Some(ref cb) = download_wake_cb {
                                         cb();
                                     }
 
-                                    // If GUI is listening with a prompt channel, send it to show the IDM popup dialog!
                                     if let Some(ref tx) = prompt_tx {
                                         let _ = tx.send(dl_req).await;
                                         let json_resp = "{\"success\":true,\"message\":\"Prompted in CosmoDownloader dialog\"}";
                                         let resp = format!(
                                             "HTTP/1.1 200 OK\r\n\
-                                             Access-Control-Allow-Origin: *\r\n\
-                                             Access-Control-Allow-Private-Network: true\r\n\
+                                             {}Access-Control-Allow-Private-Network: true\r\n\
                                              Content-Type: application/json\r\n\
                                              Content-Length: {}\r\n\
                                              Connection: close\r\n\r\n{}",
+                                            cors_header,
                                             json_resp.len(),
                                             json_resp
                                         );
@@ -240,7 +340,6 @@ impl BridgeServer {
                                         return;
                                     }
 
-                                    // Fallback: direct queue insertion
                                     let options = DownloadOptions {
                                         url: dl_req.url.clone(),
                                         num_segments: dl_req.num_segments.unwrap_or(8),
@@ -258,10 +357,10 @@ impl BridgeServer {
                                             );
                                             let resp = format!(
                                                 "HTTP/1.1 200 OK\r\n\
-                                                 Access-Control-Allow-Origin: *\r\n\
-                                                 Content-Type: application/json\r\n\
+                                                 {}Content-Type: application/json\r\n\
                                                  Content-Length: {}\r\n\
                                                  Connection: close\r\n\r\n{}",
+                                                cors_header,
                                                 json_resp.len(),
                                                 json_resp
                                             );
@@ -272,10 +371,10 @@ impl BridgeServer {
                                             let err_resp = format!("{{\"success\":false,\"error\":\"{}\"}}", e);
                                             let resp = format!(
                                                 "HTTP/1.1 500 Internal Error\r\n\
-                                                 Access-Control-Allow-Origin: *\r\n\
-                                                 Content-Type: application/json\r\n\
+                                                 {}Content-Type: application/json\r\n\
                                                  Content-Length: {}\r\n\
                                                  Connection: close\r\n\r\n{}",
+                                                cors_header,
                                                 err_resp.len(),
                                                 err_resp
                                             );
@@ -288,10 +387,10 @@ impl BridgeServer {
                                     let err_resp = format!("{{\"success\":false,\"error\":\"Invalid JSON: {}\"}}", e);
                                     let resp = format!(
                                         "HTTP/1.1 400 Bad Request\r\n\
-                                         Access-Control-Allow-Origin: *\r\n\
-                                         Content-Type: application/json\r\n\
+                                         {}Content-Type: application/json\r\n\
                                          Content-Length: {}\r\n\
                                          Connection: close\r\n\r\n{}",
+                                        cors_header,
                                         err_resp.len(),
                                         err_resp
                                     );
@@ -299,19 +398,37 @@ impl BridgeServer {
                                 }
                             }
                         } else if req.starts_with("GET /health") {
+                            // Health endpoint: returns only {"status":"ok"} without leaking any sensitive data
                             let json_resp = "{\"status\":\"ok\"}";
                             let resp = format!(
                                 "HTTP/1.1 200 OK\r\n\
-                                 Access-Control-Allow-Origin: *\r\n\
-                                 Content-Type: application/json\r\n\
+                                 {}Content-Type: application/json\r\n\
                                  Content-Length: {}\r\n\
                                  Connection: close\r\n\r\n{}",
+                                cors_header,
                                 json_resp.len(),
                                 json_resp
                             );
                             let _ = socket.write_all(resp.as_bytes()).await;
                             let _ = socket.flush().await;
                         } else if req.starts_with("POST /show") || req.starts_with("GET /show") {
+                            // /show requires valid authorization token
+                            if !is_authorized_show_request(&req, &bridge_token) {
+                                let err_resp = "{\"error\":\"unauthorized\"}";
+                                let resp = format!(
+                                    "HTTP/1.1 401 Unauthorized\r\n\
+                                     {}Content-Type: application/json\r\n\
+                                     Content-Length: {}\r\n\
+                                     Connection: close\r\n\r\n{}",
+                                    cors_header,
+                                    err_resp.len(),
+                                    err_resp
+                                );
+                                let _ = socket.write_all(resp.as_bytes()).await;
+                                let _ = socket.flush().await;
+                                return;
+                            }
+
                             if let Some(ref tx) = show_tx {
                                 let _ = tx.send(()).await;
                             }
@@ -321,20 +438,22 @@ impl BridgeServer {
                             let json_resp = "{\"status\":\"ok\"}";
                             let resp = format!(
                                 "HTTP/1.1 200 OK\r\n\
-                                 Access-Control-Allow-Origin: *\r\n\
-                                 Content-Type: application/json\r\n\
+                                 {}Content-Type: application/json\r\n\
                                  Content-Length: {}\r\n\
                                  Connection: close\r\n\r\n{}",
+                                cors_header,
                                 json_resp.len(),
                                 json_resp
                             );
                             let _ = socket.write_all(resp.as_bytes()).await;
                             let _ = socket.flush().await;
                         } else {
-                            let resp = "HTTP/1.1 404 Not Found\r\n\
-                                        Access-Control-Allow-Origin: *\r\n\
-                                        Content-Length: 0\r\n\
-                                        Connection: close\r\n\r\n";
+                            let resp = format!(
+                                "HTTP/1.1 404 Not Found\r\n\
+                                 {}Content-Length: 0\r\n\
+                                 Connection: close\r\n\r\n",
+                                cors_header
+                            );
                             let _ = socket.write_all(resp.as_bytes()).await;
                             let _ = socket.flush().await;
                         }

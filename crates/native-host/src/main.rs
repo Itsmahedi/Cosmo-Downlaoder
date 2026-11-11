@@ -23,6 +23,7 @@ enum HostAction {
     Ping,
     Download,
     Status,
+    Launch,
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,6 +41,12 @@ struct ExtensionMessage {
 #[derive(Debug, Serialize)]
 struct HostResponse {
     success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    app_running: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    already_running: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    host_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -121,6 +128,9 @@ async fn main() -> anyhow::Result<()> {
             Ok(msg) => handle_message(msg).await,
             Err(e) => HostResponse {
                 success: false,
+                app_running: None,
+                already_running: None,
+                host_version: Some(env!("CARGO_PKG_VERSION").to_string()),
                 message: None,
                 task_id: None,
                 error: Some(format!("Invalid JSON request: {}", e)),
@@ -149,7 +159,10 @@ async fn handle_message(msg: ExtensionMessage) -> HostResponse {
     match msg.action {
         Some(HostAction::Ping) => HostResponse {
             success: true,
-            message: Some("pong: Cosmo Downloader Host v1.10".to_string()),
+            app_running: None,
+            already_running: None,
+            host_version: Some(env!("CARGO_PKG_VERSION").to_string()),
+            message: Some(format!("pong: Cosmo Downloader Host v{}", env!("CARGO_PKG_VERSION"))),
             task_id: None,
             error: None,
         },
@@ -157,9 +170,65 @@ async fn handle_message(msg: ExtensionMessage) -> HostResponse {
             let running = check_bridge_health().await;
             HostResponse {
                 success: true,
-                message: Some(if running { "CosmoDownloader GUI is active" } else { "CosmoDownloader GUI is offline (using queue DB)" }.to_string()),
+                app_running: Some(running),
+                already_running: None,
+                host_version: Some(env!("CARGO_PKG_VERSION").to_string()),
+                message: Some(if running { "CosmoDownloader GUI is active".to_string() } else { "CosmoDownloader GUI is offline".to_string() }),
                 task_id: None,
                 error: None,
+            }
+        }
+        Some(HostAction::Launch) => {
+            let running = check_bridge_health().await;
+            if running {
+                let _ = trigger_show_window().await;
+                HostResponse {
+                    success: true,
+                    app_running: Some(true),
+                    already_running: Some(true),
+                    host_version: Some(env!("CARGO_PKG_VERSION").to_string()),
+                    message: Some("CosmoDownloader is already running; brought to front".to_string()),
+                    task_id: None,
+                    error: None,
+                }
+            } else if let Some(exe_path) = find_app_exe() {
+                let mut cmd = Command::new(&exe_path);
+                #[cfg(windows)]
+                {
+                    const DETACHED_PROCESS: u32 = 0x00000008;
+                    const CREATE_NO_WINDOW: u32 = 0x08000000;
+                    cmd.creation_flags(DETACHED_PROCESS | CREATE_NO_WINDOW);
+                }
+                match cmd.spawn() {
+                    Ok(_) => HostResponse {
+                        success: true,
+                        app_running: Some(false),
+                        already_running: Some(false),
+                        host_version: Some(env!("CARGO_PKG_VERSION").to_string()),
+                        message: Some("CosmoDownloader spawned successfully".to_string()),
+                        task_id: None,
+                        error: None,
+                    },
+                    Err(e) => HostResponse {
+                        success: false,
+                        app_running: Some(false),
+                        already_running: Some(false),
+                        host_version: Some(env!("CARGO_PKG_VERSION").to_string()),
+                        message: None,
+                        task_id: None,
+                        error: Some(format!("Failed to spawn CosmoDownloader: {}", e)),
+                    },
+                }
+            } else {
+                HostResponse {
+                    success: false,
+                    app_running: Some(false),
+                    already_running: Some(false),
+                    host_version: Some(env!("CARGO_PKG_VERSION").to_string()),
+                    message: None,
+                    task_id: None,
+                    error: Some("CosmoDownloader executable not found".to_string()),
+                }
             }
         }
         _ => {
@@ -168,6 +237,9 @@ async fn handle_message(msg: ExtensionMessage) -> HostResponse {
                 _ => {
                     return HostResponse {
                         success: false,
+                        app_running: None,
+                        already_running: None,
+                        host_version: Some(env!("CARGO_PKG_VERSION").to_string()),
                         message: None,
                         task_id: None,
                         error: Some("Missing 'url' parameter in download request".to_string()),
@@ -179,6 +251,9 @@ async fn handle_message(msg: ExtensionMessage) -> HostResponse {
             if let Ok(task_id) = forward_to_bridge_server(&url, &msg.filename, &msg.cookies, &msg.referer, &msg.user_agent, msg.num_segments).await {
                 return HostResponse {
                     success: true,
+                    app_running: Some(true),
+                    already_running: None,
+                    host_version: Some(env!("CARGO_PKG_VERSION").to_string()),
                     message: Some("Download sent to CosmoDownloader bridge server".to_string()),
                     task_id: Some(task_id),
                     error: None,
@@ -186,36 +261,41 @@ async fn handle_message(msg: ExtensionMessage) -> HostResponse {
             }
 
             // If GUI/bridge is offline, launch on-demand popup
-            if let Ok(mut exe) = std::env::current_exe() {
-                exe.pop();
-                exe.push("CosmoDownloader.exe");
-                if exe.exists() {
-                    let temp_dir = std::env::temp_dir();
-                    let timestamp = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .map(|d| d.as_millis())
-                        .unwrap_or(0);
-                    let temp_file = temp_dir.join(format!("cosmo_dl_req_{}_{}.json", std::process::id(), timestamp));
-                    let payload = serde_json::json!({
-                        "url": url,
-                        "filename": msg.filename,
-                        "cookies": msg.cookies,
-                        "referer": msg.referer,
-                        "user_agent": msg.user_agent,
-                        "num_segments": msg.num_segments.unwrap_or(8),
-                    });
-                    if std::fs::write(&temp_file, payload.to_string()).is_ok() {
-                        let mut popup_cmd = Command::new(&exe);
-                        popup_cmd.arg("--popup-file").arg(&temp_file);
-                        let _ = popup_cmd.spawn();
-
-                        return HostResponse {
-                            success: true,
-                            message: Some("CosmoDownloader on-demand popup opened".to_string()),
-                            task_id: Some("popup".to_string()),
-                            error: None,
-                        };
+            if let Some(exe) = find_app_exe() {
+                let temp_dir = std::env::temp_dir();
+                let timestamp = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis())
+                    .unwrap_or(0);
+                let temp_file = temp_dir.join(format!("cosmo_dl_req_{}_{}.json", std::process::id(), timestamp));
+                let payload = serde_json::json!({
+                    "url": url,
+                    "filename": msg.filename,
+                    "cookies": msg.cookies,
+                    "referer": msg.referer,
+                    "user_agent": msg.user_agent,
+                    "num_segments": msg.num_segments.unwrap_or(8),
+                });
+                if std::fs::write(&temp_file, payload.to_string()).is_ok() {
+                    let mut popup_cmd = Command::new(&exe);
+                    #[cfg(windows)]
+                    {
+                        const DETACHED_PROCESS: u32 = 0x00000008;
+                        const CREATE_NO_WINDOW: u32 = 0x08000000;
+                        popup_cmd.creation_flags(DETACHED_PROCESS | CREATE_NO_WINDOW);
                     }
+                    popup_cmd.arg("--popup-file").arg(&temp_file);
+                    let _ = popup_cmd.spawn();
+
+                    return HostResponse {
+                        success: true,
+                        app_running: Some(false),
+                        already_running: None,
+                        host_version: Some(env!("CARGO_PKG_VERSION").to_string()),
+                        message: Some("CosmoDownloader on-demand popup opened".to_string()),
+                        task_id: Some("popup".to_string()),
+                        error: None,
+                    };
                 }
             }
 
@@ -223,12 +303,18 @@ async fn handle_message(msg: ExtensionMessage) -> HostResponse {
             match queue_directly_in_db(&url, msg.filename.as_deref(), msg.cookies, msg.referer, msg.user_agent, msg.num_segments.unwrap_or(8)).await {
                 Ok(task_id) => HostResponse {
                     success: true,
+                    app_running: Some(false),
+                    already_running: None,
+                    host_version: Some(env!("CARGO_PKG_VERSION").to_string()),
                     message: Some("Download saved directly to CosmoDownloader database queue".to_string()),
                     task_id: Some(task_id),
                     error: None,
                 },
                 Err(e) => HostResponse {
                     success: false,
+                    app_running: Some(false),
+                    already_running: None,
+                    host_version: Some(env!("CARGO_PKG_VERSION").to_string()),
                     message: None,
                     task_id: None,
                     error: Some(format!("Failed to queue download: {}", e)),
@@ -317,6 +403,62 @@ async fn queue_directly_in_db(
     Ok(id)
 }
 
+fn find_app_exe() -> Option<PathBuf> {
+    // 1. In the same directory as this native-host binary
+    if let Ok(mut exe) = std::env::current_exe() {
+        exe.pop();
+        let candidate_win = exe.join("CosmoDownloader.exe");
+        if candidate_win.is_file() && candidate_win.exists() {
+            return Some(candidate_win);
+        }
+        let candidate_nix = exe.join("CosmoDownloader");
+        if candidate_nix.is_file() && candidate_nix.exists() {
+            return Some(candidate_nix);
+        }
+    }
+
+    // 2. Query Windows Registry for Cosmo Downloader install path
+    #[cfg(windows)]
+    {
+        if let Ok(out) = std::process::Command::new("reg")
+            .args(&["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "Cosmo Downloader"])
+            .output()
+        {
+            if out.status.success() {
+                let s = String::from_utf8_lossy(&out.stdout);
+                for token in s.split('"') {
+                    let p = PathBuf::from(token);
+                    if p.is_file() && p.exists() {
+                        return Some(p);
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. User local app data directory
+    if let Some(dirs) = directories::BaseDirs::new() {
+        let p = dirs.data_local_dir().join("Cosmo Downloader").join("CosmoDownloader.exe");
+        if p.is_file() && p.exists() {
+            return Some(p);
+        }
+    }
+
+    None
+}
+
+async fn trigger_show_window() -> anyhow::Result<()> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_millis(800))
+        .build()?;
+    let token = rustget_core::server::get_or_create_bridge_token();
+    let _ = client.post("http://127.0.0.1:42424/show")
+        .header("X-Cosmo-Token", token.trim())
+        .send()
+        .await;
+    Ok(())
+}
+
 fn register_manifests(chrome_manifest: &Path) -> anyhow::Result<()> {
     let chrome_path_str = chrome_manifest.to_string_lossy();
 
@@ -354,7 +496,7 @@ fn register_manifests(chrome_manifest: &Path) -> anyhow::Result<()> {
             .status();
     }
 
-    println!("Registered CosmoDownloader native messaging hosts in Windows Registry.");
+    eprintln!("Registered CosmoDownloader native messaging hosts in Windows Registry.");
     Ok(())
 }
 
@@ -370,6 +512,6 @@ fn unregister_manifests() -> anyhow::Result<()> {
         let _ = Command::new("reg").args(["delete", &firefox_key, "/f"]).status();
     }
 
-    println!("Unregistered Native Messaging hosts from Windows Registry.");
+    eprintln!("Unregistered Native Messaging hosts from Windows Registry.");
     Ok(())
 }

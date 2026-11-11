@@ -2226,10 +2226,12 @@ fn main() -> eframe::Result<()> {
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
     let _guard = rt.enter();
 
-    // Single-instance mutex enforcement on Windows
+    // Single-instance guard so launching twice never opens two windows
+    #[cfg(windows)]
+    let _instance_mutex_guard: *mut std::ffi::c_void;
     #[cfg(windows)]
     unsafe {
-        let _mutex = CreateMutexA(std::ptr::null_mut(), 1, b"CosmoDownloader_v1_0_SingleInstance_Mutex\0".as_ptr());
+        let mutex_handle = CreateMutexA(std::ptr::null_mut(), 1, b"CosmoDownloader_v1_0_SingleInstance_Mutex\0".as_ptr());
         if GetLastError() == 183 { // ERROR_ALREADY_EXISTS = 183
             // Check if existing instance is ACTUALLY running and listening on bridge port 42424
             if let Ok(mut stream) = std::net::TcpStream::connect("127.0.0.1:42424") {
@@ -2257,16 +2259,33 @@ fn main() -> eframe::Result<()> {
                     let is_bg = std::env::args().any(|a| a == "--minimized" || a == "--daemon");
                     if !is_bg {
                         show_main_window();
-                        let _ = std::io::Write::write_all(&mut stream, b"POST /show HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n");
+                        let token = rustget_core::server::get_or_create_bridge_token();
+                        let show_req = format!(
+                            "POST /show HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Cosmo-Token: {}\r\nConnection: close\r\n\r\n",
+                            token
+                        );
+                        let _ = std::io::Write::write_all(&mut stream, show_req.as_bytes());
                     }
                 }
                 // An active GUI instance exists, exit this duplicate safely
                 std::process::exit(0);
             }
-            // If port 42424 could not be reached, the previous instance exited and a child handle
-            // held the mutex name. Proceed with launch normally!
         }
+        _instance_mutex_guard = mutex_handle;
     }
+
+    #[cfg(not(windows))]
+    let _unix_instance_guard = {
+        if let Ok(mut stream) = std::net::TcpStream::connect("127.0.0.1:42424") {
+            let token = rustget_core::server::get_or_create_bridge_token();
+            let show_req = format!(
+                "POST /show HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Cosmo-Token: {}\r\nConnection: close\r\n\r\n",
+                token
+            );
+            let _ = std::io::Write::write_all(&mut stream, show_req.as_bytes());
+            std::process::exit(0);
+        }
+    };
 
     let window_icon = egui::IconData {
         rgba: ICON_RGBA.to_vec(),

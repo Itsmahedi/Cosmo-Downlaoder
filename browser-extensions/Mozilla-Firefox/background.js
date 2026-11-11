@@ -20,6 +20,27 @@ let interceptedCount = 0;
 const HOST_NAMES = ["com.cosmodownloader.downloader", "com.rustget.downloader"];
 let hostIndex = 0;
 
+/**
+ * Probes the local CosmoDownloader loopback health endpoint on-demand.
+ * Timeout is constrained to 500ms to avoid freezing background service worker.
+ */
+async function probeAppHealth() {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 500);
+    const resp = await fetch("http://127.0.0.1:42424/health", {
+      method: "GET",
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (resp.ok) {
+      const data = await resp.json();
+      return data && data.status === "ok";
+    }
+  } catch (_) {}
+  return false;
+}
+
 const INTERCEPT_EXTENSIONS = new Set([
   "zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso", "dmg", "cab",
   "exe", "msi", "apk", "deb", "rpm", "appimage", "pkg", "run",
@@ -233,31 +254,60 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.action) {
     case "getStatus":
-      if (isConnected) {
+      (async () => {
+        const appRunning = await probeAppHealth();
+        if (!nativePort) {
+          connectNativeHost();
+        }
+        const hostInstalled = isConnected && nativePort !== null;
         sendResponse({
-          connected: true,
-          interceptEnabled: interceptEnabled,
-          interceptedCount: interceptedCount,
+          appRunning,
+          hostInstalled,
+          connected: appRunning,
+          interceptEnabled,
+          interceptedCount,
         });
-      } else {
-        fetch("http://127.0.0.1:42424/health")
-          .then((r) => r.json())
-          .then((data) => {
-            const ok = data && data.status === "ok";
-            sendResponse({
-              connected: ok,
-              interceptEnabled: interceptEnabled,
-              interceptedCount: interceptedCount,
-            });
-          })
-          .catch(() => {
-            sendResponse({
-              connected: false,
-              interceptEnabled: interceptEnabled,
-              interceptedCount: interceptedCount,
-            });
-          });
-      }
+      })();
+      return true;
+
+    case "launchApp":
+      (async () => {
+        if (!nativePort || !isConnected) {
+          connectNativeHost();
+        }
+        if (!nativePort || !isConnected) {
+          sendResponse({ success: false, error: "Native messaging host not reachable" });
+          return;
+        }
+
+        try {
+          nativePort.postMessage({ action: "launch" });
+        } catch (err) {
+          sendResponse({ success: false, error: "Failed to send launch command: " + err });
+          return;
+        }
+
+        // Poll /health with backoff for up to ~5s
+        const startTime = Date.now();
+        let launched = false;
+        let delay = 150;
+
+        while (Date.now() - startTime < 5000) {
+          await new Promise((r) => setTimeout(r, delay));
+          delay = Math.min(delay * 1.4, 500);
+          const healthy = await probeAppHealth();
+          if (healthy) {
+            launched = true;
+            break;
+          }
+        }
+
+        sendResponse({
+          success: launched,
+          appRunning: launched,
+          error: launched ? null : "Timed out waiting for CosmoDownloader to start"
+        });
+      })();
       return true;
 
     case "toggleIntercept":

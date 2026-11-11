@@ -24,7 +24,7 @@ pub use probe::{extract_filename, probe_url, sanitize_filename, FileInfo};
 pub use queue::{QueueEvent, QueueManager};
 pub use rate_limiter::TokenBucketRateLimiter;
 pub use segment::{calculate_segments, Segment};
-pub use server::{BridgeServer, ExtensionDownloadRequest, spawn_on_demand_popup};
+pub use server::{BridgeServer, ExtensionDownloadRequest, spawn_on_demand_popup, get_or_create_bridge_token};
 pub use speed::SpeedTracker;
 pub use state::DownloadState;
 

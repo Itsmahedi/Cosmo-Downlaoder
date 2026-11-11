@@ -28,9 +28,16 @@
 
   <!-- Status Bar -->
   <div class="status-bar" id="statusBar">
-    <span class="status-icon">&#9679;</span>
-    <span class="status-text" id="statusText">Connecting to CosmoDownloader...</span>
+    <div class="status-bar-info">
+      <span class="status-icon">&#9679;</span>
+      <span class="status-text" id="statusText">Connecting to CosmoDownloader...</span>
+    </div>
+    <button id="launchBtn" class="launch-btn" style="display: none;" title="Start Cosmo Downloader desktop app">
+      <span class="launch-spinner" id="launchSpinner"></span>
+      <span id="launchBtnText">&#9654; Launch App</span>
+    </button>
   </div>
+  <div class="status-error" id="statusError" style="display: none;"></div>
 
   <!-- Toggle -->
   <div class="toggle-section">
