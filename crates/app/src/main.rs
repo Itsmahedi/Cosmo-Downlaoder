@@ -704,6 +704,14 @@ pub fn shell_open_folder_and_select(path: &str) {
 }
 
 fn build_system_tray(tray_tx: &std::sync::mpsc::Sender<String>, egui_ctx: egui::Context) -> Option<TrayIcon> {
+    #[cfg(target_os = "linux")]
+    {
+        if gtk::init().is_err() {
+            tracing::warn!("GTK initialization failed; system tray icon disabled.");
+            return None;
+        }
+    }
+
     let tray_menu = Menu::new();
     let show_item = MenuItem::new("Show Cosmo Downloader", true, None);
     let add_item = MenuItem::new("Add Download URL...", true, None);
@@ -1024,7 +1032,11 @@ impl CosmoDownloaderApp {
 
         let egui_ctx = cc.egui_ctx.clone();
         let tray_icon = if !is_standalone_popup && !daemon_online && saved_show_tray_icon {
-            build_system_tray(&tray_tx, egui_ctx)
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                build_system_tray(&tray_tx, egui_ctx)
+            }))
+            .ok()
+            .flatten()
         } else {
             None
         };
@@ -2384,7 +2396,11 @@ impl eframe::App for CosmoDownloaderApp {
                     ui.checkbox(&mut self.setting_show_tray_icon, "Show Icon in Windows System Tray");
                     if prev_tray != self.setting_show_tray_icon {
                         if self.setting_show_tray_icon {
-                            self.tray_icon = build_system_tray(&self.tray_tx, ctx.clone());
+                            self.tray_icon = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                build_system_tray(&self.tray_tx, ctx.clone())
+                            }))
+                            .ok()
+                            .flatten();
                         } else {
                             self.tray_icon = None;
                         }

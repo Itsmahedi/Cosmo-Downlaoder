@@ -3292,6 +3292,7 @@ dependencies = [
  "chrono",
  "eframe",
  "egui",
+ "gtk",
  "image",
  "reqwest",
  "rfd",

@@ -30,3 +30,6 @@ url = { workspace = true }
 reqwest = { workspace = true }
 rfd = "0.15"
 image = { version = "0.25", default-features = false, features = ["png"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = { version = "0.18", default-features = false }
