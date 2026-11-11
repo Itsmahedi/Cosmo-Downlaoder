@@ -2,6 +2,11 @@
 /target/
 **/*.rs.bk
 
+# Large binaries & installers
+ffmpeg.exe
+/installer/dist/
+*.exe
+
 # Logs and temporary files
 *.log
 *.tmp
