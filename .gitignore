@@ -1,1 +1,23 @@
-/internal
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE & Editor artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Internal notes & working docs
+/internal/
