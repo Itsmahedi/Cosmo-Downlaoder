@@ -1,5 +1,5 @@
-﻿/**
- * âœ¦ Cosmo Downloader v1.10 â€” Chrome/Brave/Edge Service Worker (Manifest V3)
+/**
+ * ✦ Cosmo Downloader v1.11 — Service Worker (Manifest V3)
  * 
  * Handles:
  *  1. Native messaging connection (com.cosmodownloader.downloader / com.rustget.downloader)

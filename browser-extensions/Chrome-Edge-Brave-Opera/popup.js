@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ✦ Cosmo Downloader v1.11 — Popup Script
  */
 

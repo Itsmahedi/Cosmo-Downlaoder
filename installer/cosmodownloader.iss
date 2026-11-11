@@ -2,7 +2,7 @@
 ; Cosmo Downloader Windows Setup
 
 #define MyAppName "Cosmo Downloader"
-#define MyAppVersion "v1.10"
+#define MyAppVersion "v1.11"
 #define MyAppPublisher "Mahedi"
 #define MyAppExeName "CosmoDownloader.exe"
 #define MyCliExeName "cosmodownloader-cli.exe"
@@ -11,17 +11,17 @@
 [Setup]
 AppId={{D37E7492-3580-4D3B-A924-E8251C9B71C8}
 AppName={#MyAppName}
-AppVersion=1.10.0
+AppVersion=1.11.0
 AppVerName={#MyAppName} {#MyAppVersion}
 UninstallDisplayName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-VersionInfoVersion=1.10.0.0
-VersionInfoTextVersion=1.10.0
+VersionInfoVersion=1.11.0.0
+VersionInfoTextVersion=1.11.0
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=dist
-OutputBaseFilename=CosmoDownloader-Setup-v1.10
+OutputBaseFilename=CosmoDownloader-Setup-v1.11
 SetupIconFile=icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes

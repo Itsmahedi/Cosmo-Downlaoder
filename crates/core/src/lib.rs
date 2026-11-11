@@ -1,4 +1,4 @@
-﻿pub mod category;
+pub mod category;
 pub mod checksum;
 pub mod clipboard;
 pub mod db;
@@ -14,7 +14,7 @@ pub mod state;
 pub mod youtube;
 
 // Re-exports for convenient top-level access
-pub use category::Category;
+pub use category::{categorize, Category, CategoryFilter};
 pub use checksum::{compute_sha256, verify_sha256};
 pub use clipboard::ClipboardMonitor;
 pub use db::{Database, DownloadRecord};
