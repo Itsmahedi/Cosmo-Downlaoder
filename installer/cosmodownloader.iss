@@ -2,7 +2,7 @@
 ; Cosmo Downloader Windows Setup
 
 #define MyAppName "Cosmo Downloader"
-#define MyAppVersion "v1.11"
+#define MyAppVersion "v1.12"
 #define MyAppPublisher "Mahedi"
 #define MyAppExeName "CosmoDownloader.exe"
 #define MyCliExeName "cosmodownloader-cli.exe"
@@ -11,17 +11,17 @@
 [Setup]
 AppId={{D37E7492-3580-4D3B-A924-E8251C9B71C8}
 AppName={#MyAppName}
-AppVersion=1.11.0
+AppVersion=1.12.0
 AppVerName={#MyAppName} {#MyAppVersion}
 UninstallDisplayName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-VersionInfoVersion=1.11.0.0
-VersionInfoTextVersion=1.11.0
+VersionInfoVersion=1.12.0.0
+VersionInfoTextVersion=1.12.0
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=dist
-OutputBaseFilename=CosmoDownloader-Setup-v1.11
+OutputBaseFilename=CosmoDownloader-Setup-v1.12
 SetupIconFile=icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -29,6 +29,9 @@ WizardStyle=modern
 PrivilegesRequired=lowest
 CloseApplications=yes
 RestartApplications=no
+UsePreviousAppDir=yes
+DisableDirPage=auto
+DisableProgramGroupPage=auto
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -78,5 +81,194 @@ Root: HKCU; Subkey: "Software\Microsoft\Edge\NativeMessagingHosts\com.rustget.do
 Root: HKCU; Subkey: "Software\Mozilla\NativeMessagingHosts\com.rustget.downloader"; ValueType: string; ValueData: "{app}\com.rustget.downloader.firefox.json"; Tasks: registerbrowsers; Flags: uninsdeletekey
 
 [Run]
-Filename: "{app}\{#MyHostExeName}"; Parameters: "--register ""{app}\com.cosmodownloader.downloader.chrome.json"""; Flags: runhidden
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+// Helper function to check if a file is locked by attempting to rename it temporarily
+function IsFileLocked(const FileName: String): Boolean;
+var
+  TempName: String;
+begin
+  Result := False;
+  if not FileExists(FileName) then Exit;
+
+  TempName := FileName + '.cosmo_lockcheck';
+  if RenameFile(FileName, TempName) then
+  begin
+    // Renamed successfully, so file was NOT locked. Rename it back.
+    RenameFile(TempName, FileName);
+    Result := False;
+  end
+  else
+  begin
+    Result := True;
+  end;
+end;
+
+// Compare two semver-like version strings: returns >0 if V1 > V2, 0 if equal, <0 if V1 < V2
+function CompareVersionStrings(const V1, V2: String): Integer;
+var
+  P1, P2, N1, N2: Integer;
+  S1, S2, Part1, Part2: String;
+begin
+  S1 := V1;
+  S2 := V2;
+  Result := 0;
+
+  while (Length(S1) > 0) or (Length(S2) > 0) do
+  begin
+    P1 := Pos('.', S1);
+    if P1 > 0 then
+    begin
+      Part1 := Copy(S1, 1, P1 - 1);
+      Delete(S1, 1, P1);
+    end
+    else
+    begin
+      Part1 := S1;
+      S1 := '';
+    end;
+
+    P2 := Pos('.', S2);
+    if P2 > 0 then
+    begin
+      Part2 := Copy(S2, 1, P2 - 1);
+      Delete(S2, 1, P2);
+    end
+    else
+    begin
+      Part2 := S2;
+      S2 := '';
+    end;
+
+    N1 := StrToIntDef(Part1, 0);
+    N2 := StrToIntDef(Part2, 0);
+
+    if N1 > N2 then
+    begin
+      Result := 1;
+      Exit;
+    end
+    else if N1 < N2 then
+    begin
+      Result := -1;
+      Exit;
+    end;
+  end;
+end;
+
+// Back up user database safely before file installation begins
+procedure BackupUserDatabase();
+var
+  LocalAppData, DbPath, BakPath: String;
+begin
+  LocalAppData := GetEnv('LOCALAPPDATA');
+  if LocalAppData = '' then Exit;
+
+  DbPath := LocalAppData + '\CosmoDownloader\cosmodownloader.db';
+  if FileExists(DbPath) then
+  begin
+    BakPath := DbPath + '.bak';
+    FileCopy(DbPath, BakPath, False);
+  end;
+
+  // Also check nested project dir path
+  DbPath := LocalAppData + '\CosmoDownloader\CosmoDownloader\cosmodownloader.db';
+  if FileExists(DbPath) then
+  begin
+    BakPath := DbPath + '.bak';
+    FileCopy(DbPath, BakPath, False);
+  end;
+end;
+
+// Uninstall legacy RustGet silently if detected
+procedure HandleLegacyRustGet();
+var
+  UninstallKey, UninstString: String;
+  ResultCode: Integer;
+begin
+  UninstallKey := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{9B78B45B-764E-40DC-8C37-A77E2EF5D2EA}_is1';
+  UninstString := '';
+
+  if not RegQueryStringValue(HKEY_CURRENT_USER, UninstallKey, 'UninstallString', UninstString) then
+  begin
+    RegQueryStringValue(HKEY_LOCAL_MACHINE, UninstallKey, 'UninstallString', UninstString);
+  end;
+
+  if UninstString <> '' then
+  begin
+    // Run legacy uninstaller silently first
+    if Exec(RemoveQuotes(UninstString), '/VERYSILENT /NORESTART /SUPPRESSMSGBOXES', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    begin
+      Sleep(1000);
+    end
+    else
+    begin
+      // Kill rustget binaries as a last resort if silent uninstall execution failed
+      Exec('taskkill.exe', '/F /T /IM rustget.exe /IM rustget-host.exe /IM rustget-gui.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+      Sleep(1000);
+    end;
+  end;
+end;
+
+// Warn user if downgrading from a newer installed version
+procedure CheckDowngrade();
+var
+  UninstallKey, InstalledVersion: String;
+begin
+  UninstallKey := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{D37E7492-3580-4D3B-A924-E8251C9B71C8}_is1';
+  InstalledVersion := '';
+
+  if not RegQueryStringValue(HKEY_CURRENT_USER, UninstallKey, 'DisplayVersion', InstalledVersion) then
+  begin
+    RegQueryStringValue(HKEY_LOCAL_MACHINE, UninstallKey, 'DisplayVersion', InstalledVersion);
+  end;
+
+  if InstalledVersion <> '' then
+  begin
+    if CompareVersionStrings(InstalledVersion, '1.12.0') > 0 then
+    begin
+      if MsgBox('A newer version of Cosmo Downloader (' + InstalledVersion + ') is currently installed.' + #13#10 +
+                'Downgrading to version 1.12.0 may cause configuration incompatibility.' + #13#10 + #13#10 +
+                'Do you wish to continue anyway?', mbConfirmation, MB_YESNO) <> IDYES then
+      begin
+        Abort();
+      end;
+    end;
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  AppDir, MainExe, HostExe, CliExe: String;
+  ResultCode: Integer;
+begin
+  Result := '';
+
+  // 1. Check for downgrade and handle legacy RustGet
+  CheckDowngrade();
+  HandleLegacyRustGet();
+
+  // 2. Safely back up user database
+  BackupUserDatabase();
+
+  // 3. Check if target binaries in {app} are locked
+  AppDir := ExpandConstant('{app}');
+  MainExe := AppDir + '\{#MyAppExeName}';
+  HostExe := AppDir + '\{#MyHostExeName}';
+  CliExe := AppDir + '\{#MyCliExeName}';
+
+  if IsFileLocked(MainExe) or IsFileLocked(HostExe) or IsFileLocked(CliExe) then
+  begin
+    // Restart Manager didn't release them (e.g. background host without top window), fallback to taskkill
+    Exec('taskkill.exe', '/F /T /IM {#MyAppExeName} /IM {#MyHostExeName} /IM {#MyCliExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(1500);
+
+    // Verify files are now unlocked
+    if IsFileLocked(MainExe) or IsFileLocked(HostExe) or IsFileLocked(CliExe) then
+    begin
+      Result := 'Cosmo Downloader executable files are currently locked by a running process. Please close Cosmo Downloader from the system tray and close any open browser tabs using the extension, then try running Setup again.';
+      Exit;
+    end;
+  end;
+end;

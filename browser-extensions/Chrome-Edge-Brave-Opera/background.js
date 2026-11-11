@@ -64,7 +64,27 @@ const INTERCEPT_MIMES = new Set([
 
 const MIN_SIZE_TO_INTERCEPT = 10240;
 
+let reconnectDelayMs = 1000;
+const INITIAL_RECONNECT_DELAY_MS = 1000;
+const MAX_RECONNECT_DELAY_MS = 30000;
+let reconnectTimer = null;
+
+function scheduleReconnect() {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  const delay = reconnectDelayMs;
+  reconnectDelayMs = Math.min(Math.round(reconnectDelayMs * 1.5), MAX_RECONNECT_DELAY_MS);
+  console.log(`[CosmoDownloader] Native host disconnected. Scheduling reconnect in ${delay}ms...`);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectNativeHost();
+  }, delay);
+}
+
 function connectNativeHost() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
   const hostName = HOST_NAMES[hostIndex % HOST_NAMES.length];
   try {
     nativePort = chrome.runtime.connectNative(hostName);
@@ -72,21 +92,26 @@ function connectNativeHost() {
 
     nativePort.onMessage.addListener((msg) => {
       console.log("[CosmoDownloader] Host message:", msg);
+      // Reset backoff on successful active communication
+      reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS;
     });
 
     nativePort.onDisconnect.addListener(() => {
+      const err = chrome.runtime.lastError?.message;
+      if (err) console.warn("[CosmoDownloader] Native host disconnected with error:", err);
       isConnected = false;
       nativePort = null;
       hostIndex++;
-      setTimeout(connectNativeHost, 5000);
+      scheduleReconnect();
     });
 
     console.log(`[CosmoDownloader] Connected to native host: ${hostName}`);
+    reconnectDelayMs = INITIAL_RECONNECT_DELAY_MS;
   } catch (e) {
     isConnected = false;
     nativePort = null;
     hostIndex++;
-    setTimeout(connectNativeHost, 5000);
+    scheduleReconnect();
   }
 }
 
