@@ -1,0 +1,82 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cosmo Downloader</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <img src="icons/icon-48.png" alt="Cosmo Downloader" class="logo">
+      <div>
+        <h1>
+          <span class="cosmic-sparkle">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="#00f0ff">
+              <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
+            </svg>
+          </span>
+          Cosmo Downloader
+        </h1>
+        <span class="version">v1.10</span>
+      </div>
+    </div>
+    <div class="status-dot" id="statusDot" title="Checking status..."></div>
+  </div>
+
+  <!-- Status Bar -->
+  <div class="status-bar" id="statusBar">
+    <span class="status-icon">&#9679;</span>
+    <span class="status-text" id="statusText">Connecting to CosmoDownloader...</span>
+  </div>
+
+  <!-- Toggle -->
+  <div class="toggle-section">
+    <div class="toggle-info">
+      <span class="toggle-label">Intercept Downloads</span>
+      <span class="toggle-desc">Instant warp capture in browser</span>
+    </div>
+    <label class="toggle-switch">
+      <input type="checkbox" id="toggleIntercept" checked>
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-section">
+    <div class="stat">
+      <span class="stat-value" id="interceptedCount">0</span>
+      <span class="stat-label">INTERCEPTED FILES</span>
+    </div>
+  </div>
+
+  <!-- Add URL -->
+  <div class="add-url-section">
+    <div class="input-group">
+      <input type="text" id="urlInput" placeholder="Paste URL to download..." spellcheck="false">
+      <button id="addUrlBtn" title="Send to Cosmo Downloader">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+      </button>
+    </div>
+    <div class="url-feedback" id="urlFeedback"></div>
+  </div>
+
+  <!-- Footer with Credits -->
+  <div class="footer">
+    <span>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="#a855f7" style="vertical-align: middle; margin-right: 4px;">
+        <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/>
+      </svg>
+      Lead Architect &amp; Developer: Mahedi
+    </span>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+﻿[package]
+name = "cosmodownloader-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Command line interface for CosmoDownloader"
+
+[[bin]]
+name = "cosmodownloader-cli"
+path = "src/main.rs"
+
+[[bin]]
+name = "rustget"
+path = "src/main.rs"
+
+[dependencies]
+rustget-core = { path = "../core" }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+reqwest = { workspace = true }
+url = { workspace = true }

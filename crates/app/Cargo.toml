@@ -1,0 +1,32 @@
+[package]
+name = "rustget-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Windows 11 graphical user interface for RustGet"
+
+[[bin]]
+name = "CosmoDownloader"
+path = "src/main.rs"
+
+[[bin]]
+name = "rustget-gui"
+path = "src/main.rs"
+
+[dependencies]
+rustget-core = { path = "../core" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+eframe = { workspace = true }
+egui = { workspace = true }
+tray-icon = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+chrono = { workspace = true }
+url = { workspace = true }
+reqwest = { workspace = true }
+rfd = "0.15"
+image = { version = "0.25", default-features = false, features = ["png"] }

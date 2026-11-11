@@ -1,0 +1,10 @@
+{
+  "name": "com.rustget.downloader",
+  "description": "CosmoDownloader Native Messaging Host for Google Chrome",
+  "path": "cosmodownloader-host.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://*",
+    "chrome-extension://knldjmfmopnplkmfocnjbfkbbdjodkdf/"
+  ]
+}

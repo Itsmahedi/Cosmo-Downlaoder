@@ -1,0 +1,27 @@
+﻿[package]
+name = "rustget-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Core multi-segment resume-capable download engine for RustGet"
+
+[dependencies]
+tokio = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+sha2 = { workspace = true }
+futures-util = { workspace = true }
+url = { workspace = true }
+percent-encoding = { workspace = true }
+chrono = { workspace = true }
+tokio-util = { workspace = true }
+rusqlite = { workspace = true }
+directories = { workspace = true }
+uuid = { workspace = true }
+arboard = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
