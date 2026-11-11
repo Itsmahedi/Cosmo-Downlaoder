@@ -1,4 +1,4 @@
-﻿# Cosmo Downloader - Unified Deployment & In-Place Update Script
+# Cosmo Downloader - Unified Deployment & In-Place Update Script
 [CmdletBinding()]
 param(
     [ValidateSet("Dev", "Release")]
