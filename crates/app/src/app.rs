@@ -113,6 +113,8 @@ pub struct CosmoDownloaderApp {
     pub clipboard_rx: mpsc::Receiver<String>,
     pub browser_dl_rx: mpsc::Receiver<ExtensionDownloadRequest>,
     pub show_rx: mpsc::Receiver<()>,
+    pub quit_rx: mpsc::Receiver<()>,
+    pub shutting_down: bool,
     pub initial_minimized_handled: bool,
 }
 
@@ -121,6 +123,7 @@ impl CosmoDownloaderApp {
         let mut is_standalone_popup = false;
         let mut standalone_popup_file = None;
         let mut standalone_req = None;
+        let mut initial_url_arg: Option<String> = None;
 
         let mut args_iter = std::env::args().skip(1);
         while let Some(arg) = args_iter.next() {
@@ -143,8 +146,13 @@ impl CosmoDownloaderApp {
                         standalone_popup_file = Some(file_path);
                     }
                 }
+            } else if (arg.starts_with("http://") || arg.starts_with("https://")) && initial_url_arg.is_none() {
+                initial_url_arg = Some(arg);
             }
         }
+
+        #[cfg(windows)]
+        platform::windows::init_shutdown_listener(&cc.egui_ctx);
 
         let is_popup_arg = std::env::args().any(|a| a == "--popup") || is_standalone_popup;
 
@@ -156,6 +164,7 @@ impl CosmoDownloaderApp {
 
         let (bridge_tx, bridge_rx) = mpsc::channel(32);
         let (show_tx, show_rx) = mpsc::channel(16);
+        let (quit_tx, quit_rx) = mpsc::channel(4);
         let daemon_online = std::net::TcpStream::connect("127.0.0.1:42424").is_ok();
 
         if !daemon_online {
@@ -168,9 +177,11 @@ impl CosmoDownloaderApp {
 
             let ctx_wake = cc.egui_ctx.clone();
             let ctx_wake_dl = cc.egui_ctx.clone();
+            let ctx_wake_quit = cc.egui_ctx.clone();
             let bridge_server = BridgeServer::new(Arc::clone(&queue), 42424)
                 .with_notifier(bridge_tx)
                 .with_show_notifier(show_tx)
+                .with_quit_notifier(quit_tx)
                 .with_wake_callback(move || {
                     #[cfg(windows)]
                     platform::show_main_window();
@@ -196,6 +207,7 @@ impl CosmoDownloaderApp {
             let bridge_cancel = CancellationToken::new();
             tokio::spawn(async move {
                 let _ = bridge_server.run(bridge_cancel).await;
+                ctx_wake_quit.request_repaint();
             });
         }
 
@@ -229,7 +241,8 @@ impl CosmoDownloaderApp {
         let logo_texture = Some(cc.egui_ctx.load_texture("cosmo_logo", color_image, egui::TextureOptions::LINEAR));
 
         let (tray_tx, tray_event_receiver) = std::sync::mpsc::channel();
-        let tray_icon = if !is_standalone_popup && !daemon_online && saved_show_tray {
+        // Always initialize tray icon on the primary single-instance process (even if launched via --popup-file)
+        let tray_icon = if !daemon_online && saved_show_tray {
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 platform::build_system_tray(&tray_tx, cc.egui_ctx.clone(), ICON_RGBA, APP_TITLE)
             }))
@@ -319,14 +332,38 @@ impl CosmoDownloaderApp {
             clipboard_rx: clip_rx,
             browser_dl_rx: bridge_rx,
             show_rx,
+            quit_rx,
+            shutting_down: false,
             initial_minimized_handled: false,
         };
 
         if let Some(req) = standalone_req {
             app.prepare_download_dialog(&req.url, req.filename, req.cookies, req.referer, req.num_segments);
+        } else if let Some(url_arg) = initial_url_arg {
+            app.prepare_download_dialog(&url_arg, None, None, None, None);
         }
 
         app
+    }
+
+    /// Cancels active tasks cleanly (preserving them as `'queued'` for auto-resume),
+    /// flushes SQLite WAL, removes tray icon & temp popup files, and exits cleanly.
+    pub fn perform_graceful_shutdown(&mut self) -> ! {
+        if !self.shutting_down {
+            self.shutting_down = true;
+            platform::log_daemon("Graceful shutdown requested; saving active downloads and DB state...");
+            self.tray_icon = None;
+            if let Some(ref p) = self.standalone_popup_file {
+                let _ = std::fs::remove_file(p);
+            }
+            let q = Arc::clone(&self.queue);
+            let rt = tokio::runtime::Handle::current();
+            rt.block_on(async move {
+                q.shutdown_and_save().await;
+            });
+            platform::log_daemon("Graceful shutdown complete.");
+        }
+        std::process::exit(0);
     }
 
     pub fn refresh_downloads(&mut self) {
@@ -622,6 +659,20 @@ impl CosmoDownloaderApp {
 
 impl eframe::App for CosmoDownloaderApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        #[cfg(windows)]
+        platform::windows::init_shutdown_listener(ctx);
+
+        let external_quit = self.quit_rx.try_recv().is_ok()
+            || {
+                #[cfg(windows)]
+                { platform::windows::is_external_shutdown_requested() }
+                #[cfg(not(windows))]
+                { false }
+            };
+        if external_quit {
+            self.perform_graceful_shutdown();
+        }
+
         if !self.initial_minimized_handled {
             self.initial_minimized_handled = true;
             let start_minimized = std::env::args().any(|a| a == "--minimized");
@@ -638,19 +689,27 @@ impl eframe::App for CosmoDownloaderApp {
 
         let pal = theme::palette(self.is_dark);
 
-        // Window close handler (Minimize to tray)
+        // Window close handler (honor OS/installer quit first, otherwise tray only if tray icon exists)
         if ctx.input(|i| i.viewport().close_requested()) {
+            #[cfg(windows)]
+            if platform::windows::is_external_shutdown_requested() {
+                self.perform_graceful_shutdown();
+            }
+
             if self.is_progress_popup_mode {
-                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 self.is_progress_popup_mode = false;
                 self.active_popup_task_id = None;
                 self.restore_main_window_chrome(ctx);
-                platform::hide_main_window();
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                if self.tray_icon.is_some() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                    platform::hide_main_window();
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                } else {
+                    self.perform_graceful_shutdown();
+                }
                 return;
             }
             if self.is_completed_popup_mode {
-                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 self.is_completed_popup_mode = false;
                 self.completed_dialog_record = None;
                 self.is_popup_mode = false;
@@ -658,8 +717,13 @@ impl eframe::App for CosmoDownloaderApp {
                 self.active_popup_task_id = None;
                 self.popup_opened_at = None;
                 self.restore_main_window_chrome(ctx);
-                platform::hide_main_window();
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                if self.tray_icon.is_some() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                    platform::hide_main_window();
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                } else {
+                    self.perform_graceful_shutdown();
+                }
                 return;
             }
             if self.is_popup_mode {
@@ -669,7 +733,6 @@ impl eframe::App for CosmoDownloaderApp {
                         return;
                     }
                 }
-                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 self.is_popup_mode = false;
                 self.is_progress_popup_mode = false;
                 self.is_completed_popup_mode = false;
@@ -680,8 +743,13 @@ impl eframe::App for CosmoDownloaderApp {
                 self.add_url.clear();
                 self.add_filename.clear();
                 self.restore_main_window_chrome(ctx);
-                platform::hide_main_window();
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                if self.tray_icon.is_some() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                    platform::hide_main_window();
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                } else {
+                    self.perform_graceful_shutdown();
+                }
                 return;
             }
 
@@ -692,6 +760,8 @@ impl eframe::App for CosmoDownloaderApp {
                 platform::hide_main_window();
                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                 return;
+            } else {
+                self.perform_graceful_shutdown();
             }
         }
 
@@ -913,7 +983,7 @@ impl eframe::App for CosmoDownloaderApp {
                         self.show_add_dialog = true;
                     }
                     "exit" => {
-                        std::process::exit(0);
+                        self.perform_graceful_shutdown();
                     }
                     _ => {}
                 }
@@ -1031,8 +1101,12 @@ impl eframe::App for CosmoDownloaderApp {
                         self.popup_opened_at = None;
                         if self.is_standalone_popup {
                             self.restore_main_window_chrome(ctx);
-                            platform::hide_main_window();
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                            if self.tray_icon.is_some() {
+                                platform::hide_main_window();
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                            } else {
+                                self.perform_graceful_shutdown();
+                            }
                         }
                     }
                     if outcome.start_now {
@@ -1060,8 +1134,12 @@ impl eframe::App for CosmoDownloaderApp {
                         self.popup_opened_at = None;
                         if self.is_standalone_popup {
                             self.restore_main_window_chrome(ctx);
-                            platform::hide_main_window();
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                            if self.tray_icon.is_some() {
+                                platform::hide_main_window();
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                            } else {
+                                self.perform_graceful_shutdown();
+                            }
                         }
                     }
                 });
@@ -1104,7 +1182,7 @@ impl eframe::App for CosmoDownloaderApp {
                         platform::hide_main_window();
                         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                     } else {
-                        std::process::exit(0);
+                        self.perform_graceful_shutdown();
                     }
                 }
             });
@@ -1125,7 +1203,7 @@ impl eframe::App for CosmoDownloaderApp {
                     self.show_add_dialog = true;
                 }
                 if m_act.exit_app {
-                    std::process::exit(0);
+                    self.perform_graceful_shutdown();
                 }
                 if m_act.resume_selected {
                     self.resume_selected();

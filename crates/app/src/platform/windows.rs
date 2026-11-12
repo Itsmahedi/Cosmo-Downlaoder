@@ -2,8 +2,17 @@
 
 use std::os::windows::process::CommandExt;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
 
 pub const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
+static SUBCLASS_INSTALLED: AtomicBool = AtomicBool::new(false);
+static PREV_WNDPROC: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(0);
+static EGUI_CTX_FOR_SHUTDOWN: OnceLock<eframe::egui::Context> = OnceLock::new();
+
+pub const SHUTDOWN_EVENT_NAME: &[u8] = b"Local\\CosmoDownloader_Shutdown_Event\0";
 
 #[repr(C)]
 #[allow(non_snake_case)]
@@ -43,6 +52,11 @@ extern "system" {
 
 extern "system" {
     pub fn CreateMutexA(lpMutexAttributes: *mut std::ffi::c_void, bInitialOwner: i32, lpName: *const u8) -> *mut std::ffi::c_void;
+    pub fn CreateEventA(lpEventAttributes: *mut std::ffi::c_void, bManualReset: i32, bInitialState: i32, lpName: *const u8) -> *mut std::ffi::c_void;
+    pub fn OpenEventA(dwDesiredAccess: u32, bInheritHandle: i32, lpName: *const u8) -> *mut std::ffi::c_void;
+    pub fn SetEvent(hEvent: *mut std::ffi::c_void) -> i32;
+    pub fn WaitForSingleObject(hHandle: *mut std::ffi::c_void, dwMilliseconds: u32) -> u32;
+    pub fn CloseHandle(hObject: *mut std::ffi::c_void) -> i32;
     pub fn GetLastError() -> u32;
     pub fn GetCurrentProcessId() -> u32;
     pub fn GetWindowThreadProcessId(hWnd: *mut std::ffi::c_void, lpdwProcessId: *mut u32) -> u32;
@@ -54,6 +68,87 @@ extern "system" {
     pub fn SetForegroundWindow(hWnd: *mut std::ffi::c_void) -> i32;
     pub fn SetWindowPos(hWnd: *mut std::ffi::c_void, hWndInsertAfter: *mut std::ffi::c_void, X: i32, Y: i32, cx: i32, cy: i32, uFlags: u32) -> i32;
     pub fn GetSystemMetrics(nIndex: i32) -> i32;
+    pub fn SetWindowLongPtrW(hWnd: *mut std::ffi::c_void, nIndex: i32, dwNewLong: isize) -> isize;
+    pub fn CallWindowProcW(lpPrevWndFunc: isize, hWnd: *mut std::ffi::c_void, Msg: u32, wParam: usize, lParam: isize) -> isize;
+}
+
+unsafe extern "system" fn shutdown_wndproc(
+    hwnd: *mut std::ffi::c_void,
+    msg: u32,
+    wparam: usize,
+    lparam: isize,
+) -> isize {
+    const WM_QUERYENDSESSION: u32 = 0x0011;
+    const WM_ENDSESSION: u32 = 0x0016;
+    if msg == WM_QUERYENDSESSION {
+        SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
+        if let Some(ctx) = EGUI_CTX_FOR_SHUTDOWN.get() {
+            ctx.request_repaint();
+        }
+        return 1;
+    }
+    if msg == WM_ENDSESSION && wparam != 0 {
+        SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
+        if let Some(ctx) = EGUI_CTX_FOR_SHUTDOWN.get() {
+            ctx.request_repaint();
+        }
+    }
+    let prev = PREV_WNDPROC.load(Ordering::SeqCst);
+    if prev != 0 {
+        CallWindowProcW(prev, hwnd, msg, wparam, lparam)
+    } else {
+        0
+    }
+}
+
+/// Subclasses the app's HWND once to intercept Windows RestartManager / session end messages.
+pub fn init_shutdown_listener(ctx: &eframe::egui::Context) {
+    let _ = EGUI_CTX_FOR_SHUTDOWN.set(ctx.clone());
+    if !SUBCLASS_INSTALLED.swap(true, Ordering::SeqCst) {
+        // Spawn zero-CPU waiter on named Win32 shutdown event signaled by installer or `--quit`
+        std::thread::spawn(|| unsafe {
+            let h = CreateEventA(std::ptr::null_mut(), 1, 0, SHUTDOWN_EVENT_NAME.as_ptr());
+            if !h.is_null() {
+                WaitForSingleObject(h, u32::MAX);
+                SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
+                if let Some(c) = EGUI_CTX_FOR_SHUTDOWN.get() {
+                    c.request_repaint();
+                }
+                CloseHandle(h);
+            }
+        });
+    }
+
+    if PREV_WNDPROC.load(Ordering::SeqCst) == 0 {
+        let hwnd = get_process_window();
+        if !hwnd.is_null() {
+            unsafe {
+                let prev = SetWindowLongPtrW(hwnd, -4, shutdown_wndproc as *const () as isize);
+                if prev != 0 {
+                    PREV_WNDPROC.store(prev, Ordering::SeqCst);
+                }
+            }
+        }
+    }
+}
+
+/// Returns true if OS RestartManager, Windows logoff/shutdown, or `--quit`/installer requested exit.
+pub fn is_external_shutdown_requested() -> bool {
+    SHUTDOWN_REQUESTED.load(Ordering::SeqCst)
+}
+
+/// Signals an already-running instance to gracefully save and exit. Returns true if event existed.
+pub fn signal_existing_instance_shutdown() -> bool {
+    unsafe {
+        // EVENT_MODIFY_STATE = 0x0002
+        let h = OpenEventA(0x0002, 0, SHUTDOWN_EVENT_NAME.as_ptr());
+        if !h.is_null() {
+            let ok = SetEvent(h);
+            CloseHandle(h);
+            return ok != 0;
+        }
+        false
+    }
 }
 
 pub const HWND_TOPMOST: *mut std::ffi::c_void = (-1isize) as *mut std::ffi::c_void;

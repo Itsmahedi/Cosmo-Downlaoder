@@ -11,17 +11,19 @@ pub use unix::*;
 pub use tray::*;
 
 pub fn log_daemon(msg: &str) {
-    if let Ok(mut dir) = std::env::current_exe() {
-        dir.pop();
-        let log_file = dir.join("cosmodownloader.log");
-        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
-        let line = format!("[{}] {}\n", timestamp, msg);
-        let _ = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log_file)
-            .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
-    }
+    let log_dir = std::env::var_os("LOCALAPPDATA")
+        .map(std::path::PathBuf::from)
+        .map(|base| base.join("CosmoDownloader").join("CosmoDownloader").join("logs"))
+        .unwrap_or_else(|| std::env::temp_dir().join("CosmoDownloader_logs"));
+    let _ = std::fs::create_dir_all(&log_dir);
+    let log_file = log_dir.join("cosmodownloader.log");
+    let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
+    let line = format!("[{}] {}\n", timestamp, msg);
+    let _ = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_file)
+        .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
 }
 
 pub fn get_autostart_info() -> (bool, bool) {
@@ -58,6 +60,7 @@ pub fn set_autostart_enabled(enable: bool, start_minimized: bool) {
                     format!("\"{}\"", exe.display())
                 };
                 let _ = run_reg_command(&["add", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "Cosmo Downloader", "/t", "REG_SZ", "/d", &cmd, "/f"]);
+                let _ = run_reg_command(&["delete", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "CosmoDownloader", "/f"]);
             }
         } else {
             let _ = run_reg_command(&["delete", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "Cosmo Downloader", "/f"]);
