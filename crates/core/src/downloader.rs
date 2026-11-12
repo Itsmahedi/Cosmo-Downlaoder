@@ -372,6 +372,7 @@ impl Downloader {
 
         let shared_segments = Arc::new(Mutex::new(state.segments.clone()));
         let cancel_token = self.cancel_token.clone();
+        let worker_cancel = cancel_token.child_token();
         let part_path = state.part_path.clone();
         let client = self.client.clone();
         let url = state.url.clone();
@@ -393,6 +394,7 @@ impl Downloader {
                 continue;
             }
 
+            let task_worker_cancel = worker_cancel.clone();
             let task = SegmentWorkerTask {
                 index: seg_idx,
                 client: client.clone(),
@@ -401,12 +403,17 @@ impl Downloader {
                 part_path: part_path.clone(),
                 shared_segments: Arc::clone(&shared_segments),
                 progress_notify: bytes_tx.clone(),
-                cancel: cancel_token.clone(),
+                cancel: worker_cancel.clone(),
                 rate_limiter: rate_limiter.clone(),
             };
 
             let handle = tokio::spawn(async move {
-                Self::run_segment_worker(task).await
+                let res = Self::run_segment_worker(task).await;
+                if res.is_err() {
+                    // Abort sibling segment workers quickly on any segment error
+                    task_worker_cancel.cancel();
+                }
+                res
             });
 
             worker_handles.push(handle);
@@ -477,16 +484,51 @@ impl Downloader {
             }
         }
 
-        // Wait for workers to cleanly terminate
+        // Wait for workers to cleanly terminate and capture any worker failure
+        let mut first_error: Option<DownloadError> = None;
         for handle in worker_handles {
-            if let Err(e) = handle.await {
-                error!("Segment worker task panicked: {:?}", e);
+            match handle.await {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => {
+                    error!("Segment worker failed: {:?}", e);
+                    if first_error.is_none() {
+                        first_error = Some(e);
+                    }
+                }
+                Err(e) => {
+                    error!("Segment worker task panicked: {:?}", e);
+                    if first_error.is_none() {
+                        first_error = Some(DownloadError::Io(std::io::Error::new(
+                            std::io::ErrorKind::Other,
+                            format!("Segment worker task panicked: {}", e),
+                        )));
+                    }
+                }
             }
         }
 
-        // Update state with final segment results
+        // Update state with final segment results so progress is preserved for resume
         state.segments = shared_segments.lock().await.clone();
         state.save_atomic().await?;
+
+        if self.cancel_token.is_cancelled() {
+            return Ok(());
+        }
+
+        if let Some(err) = first_error {
+            return Err(err);
+        }
+
+        let actual_downloaded = state.downloaded_bytes();
+        if actual_downloaded < total_size {
+            return Err(DownloadError::Io(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                format!(
+                    "Download incomplete: received {} of {} bytes",
+                    actual_downloaded, total_size
+                ),
+            )));
+        }
 
         Ok(())
     }
@@ -511,10 +553,13 @@ impl Downloader {
 
         let resp = task.client.get(&task.url).headers(task.headers).send().await?;
         let status = resp.status();
-        if !status.is_success() && status.as_u16() != 206 {
+        if status.as_u16() != 206 {
             return Err(DownloadError::ServerFailed {
                 status: status.as_u16(),
-                message: format!("Segment {} range request failed with {}", task.index, status),
+                message: format!(
+                    "Segment {} expected 206 Partial Content for {}, got {}",
+                    task.index, range_header, status
+                ),
             });
         }
 
@@ -526,6 +571,8 @@ impl Downloader {
 
         let mut stream = resp.bytes_stream();
         let mut last_notify = std::time::Instant::now();
+        let max_remaining = end_byte - start_offset + 1;
+        let mut written_in_run: u64 = 0;
 
         while let Some(chunk_res) = stream.next().await {
             if task.cancel.is_cancelled() {
@@ -534,19 +581,24 @@ impl Downloader {
             }
 
             let chunk = chunk_res?;
-            let chunk_len = chunk.len();
+            let remaining_needed = max_remaining.saturating_sub(written_in_run);
+            if remaining_needed == 0 {
+                break;
+            }
+            let slice_len = std::cmp::min(chunk.len() as u64, remaining_needed) as usize;
+            let slice = &chunk[..slice_len];
 
             // Throttle rate if limiter is configured
             if let Some(ref limiter) = task.rate_limiter {
-                limiter.acquire(chunk_len).await;
+                limiter.acquire(slice_len).await;
             }
 
-            file.write_all(&chunk).await?;
+            file.write_all(slice).await?;
+            written_in_run += slice_len as u64;
 
-            let chunk_len_u64 = chunk_len as u64;
             {
                 let mut segs = task.shared_segments.lock().await;
-                segs[task.index].downloaded = segs[task.index].downloaded.saturating_add(chunk_len_u64);
+                segs[task.index].downloaded = segs[task.index].downloaded.saturating_add(slice_len as u64);
                 if segs[task.index].current_offset() > segs[task.index].end {
                     segs[task.index].complete = true;
                 }
@@ -556,15 +608,32 @@ impl Downloader {
                 let _ = task.progress_notify.try_send(());
                 last_notify = std::time::Instant::now();
             }
+
+            if written_in_run >= max_remaining {
+                break;
+            }
         }
 
         file.flush().await?;
 
-        {
+        let (seg_downloaded, seg_total) = {
             let mut segs = task.shared_segments.lock().await;
-            if segs[task.index].downloaded >= segs[task.index].total_bytes() {
-                segs[task.index].complete = true;
+            let s = &mut segs[task.index];
+            let total = s.total_bytes();
+            if s.downloaded >= total {
+                s.complete = true;
             }
+            (s.downloaded, total)
+        };
+
+        if !task.cancel.is_cancelled() && seg_downloaded < seg_total {
+            return Err(DownloadError::Io(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                format!(
+                    "Segment {} ended prematurely: {} of {} bytes",
+                    task.index, seg_downloaded, seg_total
+                ),
+            )));
         }
 
         let _ = task.progress_notify.try_send(());
