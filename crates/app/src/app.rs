@@ -801,7 +801,7 @@ impl CosmoDownloaderApp {
 
     fn execute_pending_delete(&mut self) {
         let q = Arc::clone(&self.queue);
-        let ids: Vec<String> = self.pending_delete_ids.drain(..).collect();
+        let ids = std::mem::take(&mut self.pending_delete_ids);
         if ids.is_empty() {
             return;
         }
@@ -1176,7 +1176,7 @@ impl eframe::App for CosmoDownloaderApp {
         }
 
         // External show requests
-        while let Ok(_) = self.show_rx.try_recv() {
+        while self.show_rx.try_recv().is_ok() {
             if self.is_popup_mode || self.is_progress_popup_mode || self.is_completed_popup_mode {
                 continue;
             }
@@ -1290,7 +1290,7 @@ impl eframe::App for CosmoDownloaderApp {
                         "Downloading file...".to_string()
                     };
                     let prog = task_id.as_ref().and_then(|id| self.active_progress.get(id));
-                    let is_paused = task_id.as_ref().map_or(false, |id| {
+                    let is_paused = task_id.as_ref().is_some_and(|id| {
                         self.downloads.iter().any(|d| &d.id == id && d.status == "paused")
                     });
 

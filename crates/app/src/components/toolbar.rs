@@ -43,19 +43,19 @@ pub fn render_toolbar(
 
     inner.add_space(12.0);
 
-    if toolbar_btn(&mut inner, pal, "tb_add", "Add", true, |p, r, c| icons::draw_add(p, r, c)) {
+    if toolbar_btn(&mut inner, pal, "tb_add", "Add", true, icons::draw_add) {
         action.add_clicked = true;
     }
 
     toolbar_sep(&mut inner, pal);
 
-    if toolbar_btn(&mut inner, pal, "tb_resume", "Resume", has_selection, |p, r, c| icons::draw_play(p, r, c)) {
+    if toolbar_btn(&mut inner, pal, "tb_resume", "Resume", has_selection, icons::draw_play) {
         action.resume_clicked = true;
     }
-    if toolbar_btn(&mut inner, pal, "tb_pause", "Pause", has_selection, |p, r, c| icons::draw_pause(p, r, c)) {
+    if toolbar_btn(&mut inner, pal, "tb_pause", "Pause", has_selection, icons::draw_pause) {
         action.pause_clicked = true;
     }
-    if toolbar_btn(&mut inner, pal, "tb_del", "Delete", has_selection, |p, r, c| icons::draw_trash(p, r, c)) {
+    if toolbar_btn(&mut inner, pal, "tb_del", "Delete", has_selection, icons::draw_trash) {
         action.delete_clicked = true;
     }
 

@@ -27,7 +27,8 @@ pub fn render_category_sidebar(
     );
     ui.add_space(28.0);
 
-    let items: [(CategoryFilter, &str, usize, fn(&Painter, Rect, Color32)); 6] = [
+    type NavCategoryItem = (CategoryFilter, &'static str, usize, fn(&Painter, Rect, Color32));
+    let items: [NavCategoryItem; 6] = [
         (CategoryFilter::All, "All downloads", counts.all, icons::draw_all),
         (CategoryFilter::Programs, "Programs", counts.programs, icons::draw_programs),
         (CategoryFilter::Video, "Video", counts.video, icons::draw_video),

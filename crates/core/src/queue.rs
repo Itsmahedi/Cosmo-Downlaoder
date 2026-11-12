@@ -142,16 +142,16 @@ impl QueueManager {
             }
             None => {
                 let f = extract_filename(&options.headers, &parsed_url);
-                let cat = category.clone().unwrap_or_else(|| Category::detect_from_filename(&f));
+                let cat = category.unwrap_or_else(|| Category::detect_from_filename(&f));
                 let full = cat.default_dir().join(&f);
                 (f, full)
             }
         };
 
-        if crate::youtube::is_streaming_site(&options.url) {
-            if filename == "watch" || !filename.contains('.') {
-                filename = "YouTube_Video.mp4".to_string();
-            }
+        if crate::youtube::is_streaming_site(&options.url)
+            && (filename == "watch" || !filename.contains('.'))
+        {
+            filename = "YouTube_Video.mp4".to_string();
         }
 
         let cat = category.unwrap_or_else(|| Category::detect_from_filename(&filename));

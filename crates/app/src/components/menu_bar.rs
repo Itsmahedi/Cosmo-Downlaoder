@@ -3,6 +3,7 @@ use rustget_core::category::CategoryFilter;
 use crate::icons;
 use crate::theme::{shapes, ThemeColors};
 
+#[derive(Default)]
 pub struct MenuBarAction {
     pub add_download: bool,
     pub exit_app: bool,
@@ -19,28 +20,6 @@ pub struct MenuBarAction {
     pub toggle_clipboard: bool,
     pub open_downloads_dir: bool,
     pub open_about: bool,
-}
-
-impl Default for MenuBarAction {
-    fn default() -> Self {
-        Self {
-            add_download: false,
-            exit_app: false,
-            resume_selected: false,
-            pause_selected: false,
-            delete_selected: false,
-            resume_all: false,
-            pause_all: false,
-            select_all: false,
-            clear_selection: false,
-            set_category: None,
-            toggle_theme: false,
-            open_options: false,
-            toggle_clipboard: false,
-            open_downloads_dir: false,
-            open_about: false,
-        }
-    }
 }
 
 pub fn render_menu_bar(

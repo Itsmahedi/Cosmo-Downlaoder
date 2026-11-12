@@ -524,8 +524,7 @@ impl Downloader {
                 Err(e) => {
                     error!("Segment worker task panicked: {:?}", e);
                     if first_error.is_none() {
-                        first_error = Some(DownloadError::Io(std::io::Error::new(
-                            std::io::ErrorKind::Other,
+                        first_error = Some(DownloadError::Io(std::io::Error::other(
                             format!("Segment worker task panicked: {}", e),
                         )));
                     }
@@ -703,7 +702,7 @@ impl Downloader {
         };
 
         let mut requesting_range = false;
-        if existing_len > 0 && total_size.map_or(true, |t| existing_len < t) {
+        if existing_len > 0 && total_size.is_none_or(|t| existing_len < t) {
             let range_header = format!("bytes={}-", existing_len);
             debug!("Single-stream resume: requesting Range {}", range_header);
             headers.insert(reqwest::header::RANGE, range_header.parse().unwrap());
@@ -961,8 +960,7 @@ pub fn check_disk_space(target_path: &Path, needed_bytes: u64) -> Result<()> {
             )
         };
         if ok != 0 && free_avail < needed_bytes {
-            return Err(DownloadError::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            return Err(DownloadError::Io(std::io::Error::other(
                 format!(
                     "Insufficient disk space: {} available, {} required",
                     crate::speed::SpeedTracker::format_bytes(free_avail),

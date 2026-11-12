@@ -39,7 +39,7 @@ pub fn spawn_on_demand_popup(dl_req: &ExtensionDownloadRequest) -> bool {
                 if std::fs::write(&temp_file, json).is_ok() {
                     let mut cmd = std::process::Command::new(&exe);
                     cmd.arg("--popup-file").arg(&temp_file);
-                    if let Ok(_) = cmd.spawn() {
+                    if cmd.spawn().is_ok() {
                         return true;
                     }
                 }

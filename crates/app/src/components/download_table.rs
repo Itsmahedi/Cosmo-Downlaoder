@@ -26,6 +26,7 @@ pub struct TableAction {
     pub request_delete_ids: Vec<String>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn render_download_table(
     ui: &mut egui::Ui,
     pal: &ThemeColors,
@@ -107,6 +108,7 @@ pub fn render_download_table(
     table_action
 }
 
+#[allow(clippy::too_many_arguments)]
 fn draw_sort_header(
     ui: &mut egui::Ui,
     pal: &ThemeColors,
@@ -197,6 +199,7 @@ fn compute_columns(row_rect: Rect, compact: bool) -> ColLayout {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_table_row(
     ui: &mut egui::Ui,
     pal: &ThemeColors,
@@ -232,7 +235,7 @@ fn render_table_row(
     );
 
     // Checkbox (visually drawn; clicking anywhere on row toggles selection)
-    let _cb_clicked = draw_checkbox_visual(ui.painter(), cb_rect, pal, is_selected);
+    draw_checkbox_visual(ui.painter(), cb_rect, pal, is_selected);
 
     if row_resp.clicked() {
         if is_selected {
