@@ -5,6 +5,26 @@ All notable changes to Cosmo Downloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-11-12
+
+### Security
+- Enforced strict `http://` / `https://` URL validation before launching desktop/CLI/bridge downloads, sanitizing reserved Windows device names (`CON`, `NUL`, `COM1`, `LPT1`), path traversal sequences, and overlong filenames.
+- Added collision-safe auto-renaming (`file (1).ext`, `file (2).ext`) so new downloads never overwrite existing files on disk unless resuming their active `.cosmo.part` state.
+- Hardened the local HTTP bridge (`127.0.0.1:42424`) with strict `Origin` / `Sec-Fetch-Site: cross-site` CSRF blocking, `X-Cosmo-Token` authentication for `/show` and `/quit`, and redacted credentials/query strings in logs.
+- Fixed browser extension manifest permissions (removed unused `scripting` and invalid wildcard hosts) and pinned deterministic Chromium extension ID `lbifcbhmdjlhmcfipfdodbdljmcbdanf`.
+
+### Fixed
+- **Download Engine (`rustget-core`)**: Propagated multi-segment worker errors, verified partial segment byte completeness before assembly, validated `Content-Length`/`ETag`/`Last-Modified` on resume, added single-stream `Range` resume, recovered interrupted `'downloading'` tasks cleanly on startup, checked free disk space before allocation, and wired per-task speed limits and proxy settings end-to-end.
+- **Desktop App (`CosmoDownloader.exe`)**: Added single-instance URL argument handoff, non-blocking `--quit` / OS `WM_CLOSE` graceful queue save & shutdown (distinguishing real quits and Tray Exit from window-X close-to-tray), fixed `--popup-file` zombie instance handling, persisted all settings across restarts (concurrent limit, speed cap, category directories, proxy, connections, notifications), and reduced idle repaint/clipboard polling overhead.
+- **Desktop UX**: Added toolbar live search + clear, clickable column sorting (`Added`, `Name`, `Size`, `Progress`, `Speed`, `Status`), inline URL errors, per-task connection/speed/SHA-256 Add dialog fields, failed-row tooltips & Retry action, delete confirmation modal (with optional disk file removal), keyboard shortcuts (`Ctrl+N`, `Ctrl+A`, `Delete`, `Space`, `Esc`), and injection-safe Windows toast notifications.
+- **Browser Extension & Native Host**: Fixed `shouldIntercept()` trailing `return true` bug; wired configurable file-type filters, minimum size KB filter, and domain exclusion list in the popup; forwarded real `chrome.cookies` + `User-Agent` + `Referer`; restored safe browser fallback (`resume()`) on bridge/native failure; removed fabricated video file sizes; registered Chrome, Brave, Chromium, Opera, Edge, and Firefox native host manifests separately without cross-browser overwrites; and fixed AppData discovery.
+- **Windows Installer (`installer/cosmodownloader.iss`)**: Replaced broken `RenameFile` lock checks with mutex + `tasklist` detection, added `--quit` graceful shutdown + 5s timeout + `taskkill` fallback, removed duplicate `Run` key, added Brave/Chromium/Opera native host registry cleanup on uninstall, added `UninstallDisplayIcon`, preserved `%LOCALAPPDATA%\CosmoDownloader` across upgrades, and restored automatic post-update relaunch for both interactive and `/SILENT` installs.
+- **Build & Version Hygiene**: Extracted clean `lib.rs` library targets to eliminate Cargo warning noise, resolved all Clippy lints (`-D warnings`), and unified version metadata to `1.2.0` across workspace crates, PE `VERSIONINFO` resources, installer, and browser extensions.
+
+### Added
+- `crates/core/tests/audit_tests.rs` integration suite testing URL/filename sanitization, collision auto-rename, truncated segment error handling, single-stream resume + ETag mismatch reset, interrupted queue recovery, and bridge CSRF/token guards.
+- `docs/TEST_CHECKLIST.md` Windows QA manual test checklist.
+
 ## [1.12.0] - 2026-11-11
 
 ### Added
