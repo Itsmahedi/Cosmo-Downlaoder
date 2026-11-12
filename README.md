@@ -1,6 +1,6 @@
-# ✦ Cosmo Downloader v1.12
+# Cosmo Downloader v1.13.0
 
-A blazing-fast, modern multi-threaded download manager with cosmic acceleration, seamless browser integration, and intelligent media interception.
+A modern, high-speed multi-threaded download manager with a calm, professional steel design system, seamless browser integration, and intelligent video download capability.
 
 Available for **Windows 10/11** and **Linux (AppImage)**.
 
@@ -8,13 +8,13 @@ Available for **Windows 10/11** and **Linux (AppImage)**.
 
 ## ⚡ Key Features
 
+- **New Unified Design System**: Minimalist, professional steel/gray aesthetic matching `Cosmo downloader NEWWW.html`, with native light & dark themes, local Geist typography, and one-color vector line icons.
 - **Blazing Speed & Multi-Segment Acceleration**: Dynamically segments large downloads into parallel threads to maximize network bandwidth saturation with resume capability.
-- **Smart Video Interception & Quality Picker**: Injects an interactive, floating IDM-style download pill onto video players (YouTube, Vimeo, and direct HTML5 videos) with a fast quality selector (1080p, 720p, 480p, 360p, MP3 audio extraction, or best available).
-- **Intelligent Mini-Preview Suppression**: Prevents unwanted download buttons on feed previews, hover cards, thumbnails, and search snippets.
-- **Persistent Background Integration**: Seamless native messaging host bridge continues intercepting downloads even when the main GUI window is closed.
-- **1-Click App Lifecycle Awareness**: Extension popup reflects app health in real-time and enables 1-click desktop app launch directly from the browser.
-- **Seamless In-Place Updates**: Update smoothly using the installer or update script without uninstalling the previous version. Running background processes are automatically unlocked, and your download history and settings are 100% preserved.
-- **Cosmic Dark Theme**: Crafted with fluent dark aesthetics, live segment progress bars, vector category icons, and speed metrics.
+- **Columnar Download Table**: Responsive table showing checkbox selection, category icon, filename, size, progress bar with percentage, transfer speed, and status.
+- **Smart Video Interception & Shadow DOM Quality Picker**: Injects an isolated Shadow DOM download button on video players with a 176px quality menu (1080p, 720p, 480p, 360p, Audio only). Host website CSS cannot break it.
+- **340px Browser Extension Popup**: Clean popup with connection indicator, download interception toggle, intercepted count, and fast URL submission.
+- **Persistent Background Integration**: Native messaging host bridge continues intercepting downloads even when the main GUI window is closed.
+- **1-Click App Lifecycle Awareness**: Extension popup reflects app health in real-time and enables instant URL sending to the engine.
 
 ---
 
@@ -22,24 +22,23 @@ Available for **Windows 10/11** and **Linux (AppImage)**.
 
 ### Windows Installation & In-Place Update
 
-1. Download and run **`CosmoDownloader-Setup-v1.12.exe`**.
+1. Download and run **`CosmoDownloader-Setup-v1.13.exe`** (or build from source with `cargo build --release`).
 2. Follow the setup wizard:
    - The installer automatically detects existing installations, stops running background processes without file-in-use errors, and upgrades in place.
    - User database and settings in `%LOCALAPPDATA%\CosmoDownloader` are preserved (with automatic `.bak` backups).
-   - If upgrading from legacy RustGet installations, the installer cleanly migrates your setup.
    - Browser native messaging hosts and desktop shortcuts are automatically registered.
 
 #### Silent / Unattended Upgrades:
 ```cmd
-CosmoDownloader-Setup-v1.12.exe /VERYSILENT /NORESTART /SUPPRESSMSGBOXES
+CosmoDownloader-Setup-v1.13.exe /VERYSILENT /NORESTART /SUPPRESSMSGBOXES
 ```
 
 ### Linux (AppImage)
 
 1. Download the standalone executable:
    ```bash
-   chmod +x dist/CosmoDownloader-1.12.0-x86_64.AppImage
-   ./dist/CosmoDownloader-1.12.0-x86_64.AppImage
+   chmod +x dist/CosmoDownloader-1.13.0-x86_64.AppImage
+   ./dist/CosmoDownloader-1.13.0-x86_64.AppImage
    ```
 2. To build the AppImage from source on Linux:
    ```bash
