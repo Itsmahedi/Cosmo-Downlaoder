@@ -53,5 +53,3 @@ When writing or modifying code in this repository, keep in mind:
 
 4. **Local Bridge Port:**
    - The internal HTTP bridge operates on `127.0.0.1:42424`. If modifying this port, it must be changed consistently across `crates/core/src/server.rs` and `crates/native-host/src/main.rs`.
-
-5.always upload the updated exe and browser extention to github using github cli to my public repo that only holds the exehttps://github.com/Itsmahedi/Cosmo-Downlaoder And linux too
