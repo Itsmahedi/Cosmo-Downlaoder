@@ -96,7 +96,11 @@ pub struct CosmoDownloaderApp {
     // Settings fields
     pub setting_max_concurrent: usize,
     pub setting_global_speed_kb: u64,
+    pub setting_default_connections: usize,
+    pub setting_default_save_dir: String,
+    pub setting_proxy_url: String,
     pub setting_clipboard_monitor: bool,
+    pub setting_notifications_enabled: bool,
     pub setting_minimize_to_tray: bool,
     pub setting_show_tray_icon: bool,
     pub setting_autostart: bool,
@@ -217,16 +221,122 @@ impl CosmoDownloaderApp {
         clip_monitor.start(clip_tx);
 
         let (autostart, reg_start_minimized) = platform::get_autostart_info();
-        let (saved_clip, saved_min_tray, saved_show_tray, saved_start_min, saved_theme) = {
+        let (
+            saved_max_conc,
+            saved_speed_bps,
+            saved_conns,
+            saved_save_dir,
+            saved_proxy,
+            saved_clip,
+            saved_notify,
+            saved_min_tray,
+            saved_show_tray,
+            saved_start_min,
+            saved_dont_complete,
+            saved_theme,
+        ) = {
             let rt = tokio::runtime::Handle::current();
             rt.block_on(async {
                 let db = queue.db();
-                let clip = db.get_setting("clipboard_monitor_enabled").await.ok().flatten().map(|v| v == "true").unwrap_or(false);
-                let min_tray = db.get_setting("minimize_to_tray_enabled").await.ok().flatten().map(|v| v == "true").unwrap_or(true);
-                let show_tray = db.get_setting("show_tray_icon_enabled").await.ok().flatten().map(|v| v == "true").unwrap_or(true);
-                let start_min = db.get_setting("start_minimized_enabled").await.ok().flatten().map(|v| v == "true").unwrap_or(reg_start_minimized);
+                let max_c = db
+                    .get_setting("max_concurrent_downloads")
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|v| v.parse::<usize>().ok())
+                    .unwrap_or(3)
+                    .clamp(1, 10);
+                let speed_bps = db
+                    .get_setting("global_speed_limit_bps")
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|v| v.parse::<u64>().ok())
+                    .unwrap_or(0);
+                let conns = db
+                    .get_setting("default_num_segments")
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|v| v.parse::<usize>().ok())
+                    .unwrap_or(8)
+                    .clamp(1, 32);
+                let save_dir = db
+                    .get_setting("default_save_dir")
+                    .await
+                    .ok()
+                    .flatten()
+                    .unwrap_or_default();
+                let proxy = db
+                    .get_setting("proxy_url")
+                    .await
+                    .ok()
+                    .flatten()
+                    .unwrap_or_default();
+                let clip = db
+                    .get_setting("clipboard_monitor_enabled")
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|v| v == "true")
+                    .unwrap_or(false);
+                let notify = db
+                    .get_setting("notifications_enabled")
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|v| v == "true")
+                    .unwrap_or(true);
+                let min_tray = db
+                    .get_setting("minimize_to_tray_enabled")
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|v| v == "true")
+                    .unwrap_or(true);
+                let show_tray = db
+                    .get_setting("show_tray_icon_enabled")
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|v| v == "true")
+                    .unwrap_or(true);
+                let start_min = db
+                    .get_setting("start_minimized_enabled")
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|v| v == "true")
+                    .unwrap_or(reg_start_minimized);
+                let dont_complete = db
+                    .get_setting("dont_show_complete_dialog")
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|v| v == "true")
+                    .unwrap_or(false);
                 let ui_theme = db.get_setting("ui_theme").await.ok().flatten();
-                (clip, min_tray, show_tray, start_min, ui_theme)
+
+                queue.set_max_concurrent(max_c).await;
+                queue.set_global_speed_limit(speed_bps).await;
+                if !proxy.trim().is_empty() {
+                    queue.set_proxy(Some(proxy.clone())).await;
+                }
+
+                (
+                    max_c,
+                    speed_bps,
+                    conns,
+                    save_dir,
+                    proxy,
+                    clip,
+                    notify,
+                    min_tray,
+                    show_tray,
+                    start_min,
+                    dont_complete,
+                    ui_theme,
+                )
             })
         };
 
@@ -303,8 +413,12 @@ impl CosmoDownloaderApp {
             add_url: String::new(),
             add_filename: String::new(),
             add_category: "General".to_string(),
-            add_save_dir: Category::General.default_dir().to_string_lossy().to_string(),
-            add_connections: 8,
+            add_save_dir: if !saved_save_dir.trim().is_empty() {
+                saved_save_dir.clone()
+            } else {
+                Category::General.default_dir().to_string_lossy().to_string()
+            },
+            add_connections: saved_conns,
             add_speed_limit_kb: 0,
             add_checksum: String::new(),
             add_cookies: None,
@@ -315,14 +429,18 @@ impl CosmoDownloaderApp {
             show_notes_expanded: false,
             size_probe_rx: None,
 
-            setting_max_concurrent: 3,
-            setting_global_speed_kb: 0,
+            setting_max_concurrent: saved_max_conc,
+            setting_global_speed_kb: saved_speed_bps / 1024,
+            setting_default_connections: saved_conns,
+            setting_default_save_dir: saved_save_dir,
+            setting_proxy_url: saved_proxy,
             setting_clipboard_monitor: saved_clip,
+            setting_notifications_enabled: saved_notify,
             setting_minimize_to_tray: saved_min_tray,
             setting_show_tray_icon: saved_show_tray,
             setting_autostart: autostart,
             setting_start_minimized: saved_start_min,
-            setting_dont_show_complete_dialog: false,
+            setting_dont_show_complete_dialog: saved_dont_complete,
 
             tray_icon,
             tray_tx,
@@ -390,7 +508,7 @@ impl CosmoDownloaderApp {
         self.add_url = url.trim().to_string();
         self.add_cookies = cookies;
         self.add_referer = referer;
-        self.add_connections = num_segments.unwrap_or(8);
+        self.add_connections = num_segments.unwrap_or(self.setting_default_connections).clamp(1, 32);
         self.add_description.clear();
         self.add_file_size = None;
         self.add_remember_category = true;
@@ -415,7 +533,11 @@ impl CosmoDownloaderApp {
             categorize(Some(&self.add_filename), None)
         };
         self.add_category = cat.name().to_string();
-        self.add_save_dir = cat.default_dir().to_string_lossy().to_string();
+        self.add_save_dir = if !self.setting_default_save_dir.trim().is_empty() {
+            self.setting_default_save_dir.clone()
+        } else {
+            cat.default_dir().to_string_lossy().to_string()
+        };
         self.show_notes_expanded = false;
         self.show_add_dialog = true;
 
@@ -1032,16 +1154,24 @@ impl eframe::App for CosmoDownloaderApp {
                         self.active_popup_task_id = None;
                         if self.is_standalone_popup {
                             self.restore_main_window_chrome(ctx);
-                            platform::hide_main_window();
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                            if self.tray_icon.is_some() {
+                                platform::hide_main_window();
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                            } else {
+                                self.perform_graceful_shutdown();
+                            }
                         }
                     }
                     if outcome.close {
                         self.is_progress_popup_mode = false;
                         if self.is_standalone_popup {
                             self.restore_main_window_chrome(ctx);
-                            platform::hide_main_window();
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                            if self.tray_icon.is_some() {
+                                platform::hide_main_window();
+                                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                            } else {
+                                self.perform_graceful_shutdown();
+                            }
                         }
                     }
                 });
@@ -1056,14 +1186,17 @@ impl eframe::App for CosmoDownloaderApp {
                     if let Some(ref record) = self.completed_dialog_record {
                         let outcome = render_complete_dialog(ui, pal, record);
                         if outcome.close {
+                            self.is_completed_popup_mode = false;
+                            self.completed_dialog_record = None;
                             if self.is_standalone_popup {
-                                if let Some(ref f) = self.standalone_popup_file {
-                                    let _ = std::fs::remove_file(f);
+                                self.restore_main_window_chrome(ctx);
+                                if self.tray_icon.is_some() {
+                                    platform::hide_main_window();
+                                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                                } else {
+                                    self.perform_graceful_shutdown();
                                 }
-                                std::process::exit(0);
                             } else {
-                                self.is_completed_popup_mode = false;
-                                self.completed_dialog_record = None;
                                 self.restore_main_window_chrome(ctx);
                                 platform::hide_main_window();
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
@@ -1437,17 +1570,21 @@ impl eframe::App for CosmoDownloaderApp {
                 .show(ctx, |ui| {
                     ui.set_width(420.0);
                     let prev_tray = self.setting_show_tray_icon;
-                    let outcome = render_settings_dialog(
-                        ui,
-                        pal_refresh,
-                        &mut self.setting_max_concurrent,
-                        &mut self.setting_global_speed_kb,
-                        &mut self.setting_clipboard_monitor,
-                        &mut self.setting_minimize_to_tray,
-                        &mut self.setting_show_tray_icon,
-                        &mut self.setting_autostart,
-                        &mut self.setting_start_minimized,
-                    );
+                    let mut settings_state = SettingsViewState {
+                        max_concurrent: &mut self.setting_max_concurrent,
+                        global_speed_kb: &mut self.setting_global_speed_kb,
+                        default_connections: &mut self.setting_default_connections,
+                        default_save_dir: &mut self.setting_default_save_dir,
+                        proxy_url: &mut self.setting_proxy_url,
+                        clipboard_monitor: &mut self.setting_clipboard_monitor,
+                        notifications_enabled: &mut self.setting_notifications_enabled,
+                        dont_show_complete_dialog: &mut self.setting_dont_show_complete_dialog,
+                        minimize_to_tray: &mut self.setting_minimize_to_tray,
+                        show_tray_icon: &mut self.setting_show_tray_icon,
+                        autostart: &mut self.setting_autostart,
+                        start_minimized: &mut self.setting_start_minimized,
+                    };
+                    let outcome = render_settings_dialog(ui, pal_refresh, &mut settings_state);
 
                     if prev_tray != self.setting_show_tray_icon {
                         if self.setting_show_tray_icon {
@@ -1459,11 +1596,17 @@ impl eframe::App for CosmoDownloaderApp {
 
                     if outcome.save_and_close {
                         self.show_settings_dialog = false;
+                        self.add_connections = self.setting_default_connections;
                         let q = Arc::clone(&self.queue);
                         let db = self.queue.db().clone();
                         let max_c = self.setting_max_concurrent;
                         let speed_bps = self.setting_global_speed_kb * 1024;
+                        let conns = self.setting_default_connections;
+                        let save_dir = self.setting_default_save_dir.clone();
+                        let proxy = self.setting_proxy_url.clone();
                         let clip = self.setting_clipboard_monitor;
+                        let notify = self.setting_notifications_enabled;
+                        let dont_complete = self.setting_dont_show_complete_dialog;
                         let min_tray = self.setting_minimize_to_tray;
                         let show_tray = self.setting_show_tray_icon;
                         let autostart = self.setting_autostart;
@@ -1472,7 +1615,15 @@ impl eframe::App for CosmoDownloaderApp {
                         tokio::spawn(async move {
                             q.set_max_concurrent(max_c).await;
                             q.set_global_speed_limit(speed_bps).await;
+                            q.set_proxy(if proxy.trim().is_empty() { None } else { Some(proxy.clone()) }).await;
+                            let _ = db.set_setting("max_concurrent_downloads", &max_c.to_string()).await;
+                            let _ = db.set_setting("global_speed_limit_bps", &speed_bps.to_string()).await;
+                            let _ = db.set_setting("default_num_segments", &conns.to_string()).await;
+                            let _ = db.set_setting("default_save_dir", &save_dir).await;
+                            let _ = db.set_setting("proxy_url", &proxy).await;
                             let _ = db.set_setting("clipboard_monitor_enabled", if clip { "true" } else { "false" }).await;
+                            let _ = db.set_setting("notifications_enabled", if notify { "true" } else { "false" }).await;
+                            let _ = db.set_setting("dont_show_complete_dialog", if dont_complete { "true" } else { "false" }).await;
                             let _ = db.set_setting("minimize_to_tray_enabled", if min_tray { "true" } else { "false" }).await;
                             let _ = db.set_setting("show_tray_icon_enabled", if show_tray { "true" } else { "false" }).await;
                             let _ = db.set_setting("start_minimized_enabled", if start_min { "true" } else { "false" }).await;
