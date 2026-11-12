@@ -6,6 +6,46 @@ use url::Url;
 
 use crate::error::{DownloadError, Result};
 
+/// Validates that a URL string is a well-formed HTTP or HTTPS URL with a host.
+pub fn validate_http_url(raw: &str) -> Result<Url> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(DownloadError::InvalidUrl("URL cannot be empty".to_string()));
+    }
+    let parsed = Url::parse(trimmed)
+        .map_err(|e| DownloadError::InvalidUrl(format!("Invalid URL '{}': {}", trimmed, e)))?;
+    match parsed.scheme() {
+        "http" | "https" => {}
+        other => {
+            return Err(DownloadError::InvalidUrl(format!(
+                "Unsupported URL scheme '{}': only http:// and https:// are allowed",
+                other
+            )));
+        }
+    }
+    if parsed.host_str().map(|h| h.is_empty()).unwrap_or(true) {
+        return Err(DownloadError::InvalidUrl("URL must contain a valid host".to_string()));
+    }
+    Ok(parsed)
+}
+
+/// Redacts credentials and query string tokens before writing a URL to logs.
+pub fn redact_url_for_log(raw: &str) -> String {
+    match Url::parse(raw) {
+        Ok(mut u) => {
+            if !u.username().is_empty() || u.password().is_some() {
+                let _ = u.set_username("***");
+                let _ = u.set_password(Some("***"));
+            }
+            if u.query().is_some() {
+                u.set_query(Some("***"));
+            }
+            u.to_string()
+        }
+        Err(_) => "<invalid-url>".to_string(),
+    }
+}
+
 /// Information obtained from probing a remote URL.
 #[derive(Debug, Clone)]
 pub struct FileInfo {
@@ -27,7 +67,7 @@ pub struct FileInfo {
 
 /// Probes a remote URL using HEAD (with fallback to Range GET) to determine file characteristics.
 pub async fn probe_url(client: &Client, url: &Url, custom_headers: &HeaderMap) -> Result<FileInfo> {
-    debug!("Probing URL via HEAD: {}", url);
+    debug!("Probing URL via HEAD: {}", redact_url_for_log(url.as_str()));
 
     let head_result = client
         .head(url.clone())
@@ -303,16 +343,22 @@ pub fn mime_to_extension(mime: Option<&str>) -> &'static str {
     }
 }
 
-/// Parses RFC 6266 / RFC 5987 Content-Disposition header.
+/// Parses RFC 6266 / RFC 5987 Content-Disposition header (case-insensitive parameter names).
 fn parse_content_disposition(header: &str) -> Option<String> {
     // Look for filename*=UTF-8''encoded_name
     for part in header.split(';') {
         let trimmed = part.trim();
-        if let Some(val) = trimmed.strip_prefix("filename*=") {
-            let val = val.trim_matches('"');
-            if let Some(encoded) = val.strip_prefix("UTF-8''").or_else(|| val.strip_prefix("utf-8''")) {
+        let lower = trimmed.to_ascii_lowercase();
+        if lower.starts_with("filename*=") {
+            let val = trimmed["filename*=".len()..].trim().trim_matches('"');
+            let lower_val = val.to_ascii_lowercase();
+            if lower_val.starts_with("utf-8''") {
+                let encoded = &val["utf-8''".len()..];
                 if let Ok(decoded) = percent_decode_str(encoded).decode_utf8() {
-                    return Some(decoded.to_string());
+                    let leaf = decoded.rsplit(['/', '\\']).next().unwrap_or(&decoded);
+                    if !leaf.trim().is_empty() {
+                        return Some(leaf.to_string());
+                    }
                 }
             }
         }
@@ -321,10 +367,12 @@ fn parse_content_disposition(header: &str) -> Option<String> {
     // Look for filename="name" or filename=name
     for part in header.split(';') {
         let trimmed = part.trim();
-        if let Some(val) = trimmed.strip_prefix("filename=") {
-            let val = val.trim().trim_matches('"').trim();
-            if !val.is_empty() {
-                return Some(val.to_string());
+        let lower = trimmed.to_ascii_lowercase();
+        if lower.starts_with("filename=") {
+            let val = trimmed["filename=".len()..].trim().trim_matches('"').trim();
+            let leaf = val.rsplit(['/', '\\']).next().unwrap_or(val).trim();
+            if !leaf.is_empty() {
+                return Some(leaf.to_string());
             }
         }
     }
@@ -332,20 +380,85 @@ fn parse_content_disposition(header: &str) -> Option<String> {
     None
 }
 
-/// Removes illegal Windows filename characters and trims whitespace.
+/// Returns true if `name` (before any extension) matches a Windows reserved DOS device name.
+fn is_windows_reserved_name(stem: &str) -> bool {
+    let upper = stem.to_ascii_uppercase();
+    matches!(
+        upper.as_str(),
+        "CON"
+            | "PRN"
+            | "AUX"
+            | "NUL"
+            | "COM1"
+            | "COM2"
+            | "COM3"
+            | "COM4"
+            | "COM5"
+            | "COM6"
+            | "COM7"
+            | "COM8"
+            | "COM9"
+            | "LPT1"
+            | "LPT2"
+            | "LPT3"
+            | "LPT4"
+            | "LPT5"
+            | "LPT6"
+            | "LPT7"
+            | "LPT8"
+            | "LPT9"
+    )
+}
+
+/// Removes illegal Windows filename characters, control chars, reserved device names, and overlong names.
 pub fn sanitize_filename(name: &str) -> String {
     let forbidden = ['/', '\\', ':', '*', '?', '"', '<', '>', '|', '\0'];
     let cleaned: String = name
         .chars()
-        .map(|c| if forbidden.contains(&c) { '_' } else { c })
+        .map(|c| {
+            if forbidden.contains(&c) || c.is_control() {
+                '_'
+            } else {
+                c
+            }
+        })
         .collect();
 
-    let trimmed = cleaned.trim().trim_matches('.').trim();
+    let trimmed = cleaned
+        .trim_matches(|c: char| c.is_whitespace() || c == '.')
+        .trim();
     if trimmed.is_empty() {
-        "download.bin".to_string()
+        return "download.bin".to_string();
+    }
+
+    // Protect Windows reserved device names (e.g. CON, NUL.txt, COM1.log)
+    let stem = trimmed.split('.').next().unwrap_or(trimmed);
+    let safe = if is_windows_reserved_name(stem) {
+        format!("_{}", trimmed)
     } else {
         trimmed.to_string()
+    };
+
+    // Enforce safe component length (< 180 chars) while preserving file extension
+    if safe.chars().count() <= 180 {
+        return safe;
     }
+
+    if let Some(dot_idx) = safe.rfind('.') {
+        let ext = &safe[dot_idx..];
+        if ext.chars().count() <= 20 {
+            let max_stem = 180usize.saturating_sub(ext.chars().count());
+            let truncated_stem: String = safe[..dot_idx].chars().take(max_stem).collect();
+            let result = format!("{}{}", truncated_stem.trim_end_matches([' ', '.']), ext);
+            return if result.is_empty() {
+                "download.bin".to_string()
+            } else {
+                result
+            };
+        }
+    }
+
+    safe.chars().take(180).collect()
 }
 
 #[cfg(test)]

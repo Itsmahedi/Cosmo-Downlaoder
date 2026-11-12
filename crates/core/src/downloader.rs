@@ -10,11 +10,10 @@ use tokio::sync::{mpsc, Mutex};
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
-use url::Url;
 
 use crate::checksum::verify_sha256;
 use crate::error::{DownloadError, Result};
-use crate::probe::{probe_url, FileInfo};
+use crate::probe::{probe_url, sanitize_filename, validate_http_url, FileInfo};
 use crate::rate_limiter::TokenBucketRateLimiter;
 use crate::segment::{calculate_segments, Segment};
 use crate::speed::SpeedTracker;
@@ -199,8 +198,7 @@ impl Downloader {
 
     /// Starts or resumes the download, sending progress updates through `progress_tx`.
     pub async fn start(&self, progress_tx: mpsc::Sender<DownloadProgress>) -> Result<PathBuf> {
-        let url = Url::parse(&self.options.url)
-            .map_err(|e| DownloadError::InvalidUrl(format!("Invalid URL '{}': {}", self.options.url, e)))?;
+        let url = validate_http_url(&self.options.url)?;
 
         let headers = self.build_headers();
 
@@ -216,33 +214,12 @@ impl Downloader {
         }).await;
 
         let info = probe_url(&self.client, &url, &headers).await?;
-        debug!("Probe result: {:?}", info);
+        debug!("Probe result received (size={:?}, ranges={})", info.content_length, info.accepts_ranges);
 
-        // Resolve destination file path
+        // Resolve collision-safe destination file path
         let target_path = self.resolve_target_path(&info)?;
         let part_path = self.resolve_part_path(&target_path);
         let state_path = DownloadState::state_file_path(&part_path);
-
-        // Check if final file already exists and is complete
-        if target_path.exists() && !part_path.exists() && !state_path.exists() {
-            if let Some(expected_size) = info.content_length {
-                if let Ok(meta) = fs::metadata(&target_path).await {
-                    if meta.len() == expected_size {
-                        info!("Target file already exists with matching size: {:?}", target_path);
-                        let _ = progress_tx.send(DownloadProgress {
-                            status: DownloadStatus::Completed,
-                            total_bytes: Some(expected_size),
-                            downloaded_bytes: expected_size,
-                            speed_bps: 0.0,
-                            eta_seconds: Some(0),
-                            segments: Vec::new(),
-                            file_path: target_path.clone(),
-                        }).await;
-                        return Ok(target_path);
-                    }
-                }
-            }
-        }
 
         // Try resuming from existing state if remote metadata still matches
         let mut state = if self.options.resume && state_path.exists() {
@@ -874,11 +851,37 @@ impl Downloader {
             }
         };
 
-        // Final sanity check: ensure target path doesn't end with extensionless "download"
+        // Final sanity check: sanitize leaf filename (blocks reserved Windows names / traversal)
         let current_leaf = path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-        if current_leaf.eq_ignore_ascii_case("download") {
+        let safe_leaf = if current_leaf.eq_ignore_ascii_case("download") {
             let ext = crate::probe::mime_to_extension(info.mime_type.as_deref());
-            path.set_file_name(format!("download.{}", ext));
+            sanitize_filename(&format!("download.{}", ext))
+        } else {
+            sanitize_filename(&current_leaf)
+        };
+        path.set_file_name(&safe_leaf);
+
+        // Collision-safe auto-renaming: avoid overwriting an existing file on disk unless we are resuming its .cosmo.part/.state.json
+        let part_path = self.resolve_part_path(&path);
+        let state_path = DownloadState::state_file_path(&part_path);
+        if path.exists() && !part_path.exists() && !state_path.exists() {
+            let parent = path.parent().unwrap_or_else(|| Path::new(".")).to_path_buf();
+            let p_leaf = Path::new(&safe_leaf);
+            let stem = p_leaf.file_stem().and_then(|s| s.to_str()).unwrap_or("download");
+            let ext = p_leaf.extension().and_then(|s| s.to_str());
+            for i in 1..10_000u32 {
+                let candidate_name = match ext {
+                    Some(e) if !e.is_empty() => format!("{} ({}).{}", stem, i, e),
+                    _ => format!("{} ({})", stem, i),
+                };
+                let candidate = parent.join(&candidate_name);
+                let cand_part = self.resolve_part_path(&candidate);
+                let cand_state = DownloadState::state_file_path(&cand_part);
+                if !candidate.exists() || cand_part.exists() || cand_state.exists() {
+                    path = candidate;
+                    break;
+                }
+            }
         }
 
         Ok(path)

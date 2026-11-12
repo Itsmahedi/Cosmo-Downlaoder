@@ -10,14 +10,13 @@ use tokio::sync::{mpsc, Mutex};
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
-use url::Url;
 use uuid::Uuid;
 
 use crate::category::Category;
 use crate::db::{Database, DownloadRecord};
 use crate::downloader::{DownloadOptions, DownloadProgress, Downloader};
 use crate::error::{DownloadError, Result};
-use crate::probe::extract_filename;
+use crate::probe::{extract_filename, sanitize_filename, validate_http_url};
 use crate::rate_limiter::TokenBucketRateLimiter;
 
 /// Events broadcast by the queue manager.
@@ -123,14 +122,18 @@ impl QueueManager {
         max_speed_bps: u64,
         status: &str,
     ) -> Result<DownloadRecord> {
-        let parsed_url = Url::parse(&options.url)
-            .map_err(|e| DownloadError::InvalidUrl(format!("Invalid URL: {}", e)))?;
+        let parsed_url = validate_http_url(&options.url)?;
 
         let (mut filename, target_path) = match &options.output_path {
             Some(p) if !p.is_dir() && p.file_name().is_some() => {
                 let fname = p.file_name().unwrap().to_string_lossy().to_string();
-                let f = if !fname.is_empty() { fname } else { extract_filename(&options.headers, &parsed_url) };
-                (f, p.clone())
+                let f = if !fname.trim().is_empty() {
+                    sanitize_filename(&fname)
+                } else {
+                    extract_filename(&options.headers, &parsed_url)
+                };
+                let sanitized_path = p.parent().unwrap_or(Path::new(".")).join(&f);
+                (f, sanitized_path)
             }
             Some(p) => {
                 let f = extract_filename(&options.headers, &parsed_url);

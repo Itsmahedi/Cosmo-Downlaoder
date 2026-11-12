@@ -63,29 +63,42 @@ pub fn get_or_create_bridge_token() -> String {
     new_token
 }
 
-/// Validates the Origin header. Only browser extensions (chrome-extension://, moz-extension://, extension://)
-/// or requests with no Origin (local native tools/host) are allowed. External web origins are rejected.
+/// Validates Origin and Sec-Fetch-Site headers.
+/// Only browser extensions (`chrome-extension://`, `moz-extension://`, `extension://`)
+/// or native requests with no `Origin` (and non-`cross-site` `Sec-Fetch-Site`) are allowed.
 fn validate_request_origin(headers_part: &str) -> Result<Option<String>, &'static str> {
+    let mut origin_val: Option<String> = None;
     for line in headers_part.lines() {
         let lower = line.to_ascii_lowercase();
+        if lower.starts_with("sec-fetch-site:") {
+            if let Some(pos) = line.find(':') {
+                let sfs = line[pos + 1..].trim().to_ascii_lowercase();
+                if sfs == "cross-site" {
+                    return Err("Forbidden: cross-site browser requests are rejected");
+                }
+            }
+        }
         if lower.starts_with("origin:") {
             if let Some(pos) = line.find(':') {
                 let origin = line[pos + 1..].trim();
-                if origin.is_empty() || origin == "null" {
-                    return Ok(None);
+                if origin == "null" {
+                    return Err("Forbidden: null origin is rejected");
+                }
+                if origin.is_empty() {
+                    continue;
                 }
                 if origin.starts_with("chrome-extension://")
                     || origin.starts_with("moz-extension://")
                     || origin.starts_with("extension://")
                 {
-                    return Ok(Some(origin.to_string()));
+                    origin_val = Some(origin.to_string());
                 } else {
                     return Err("Forbidden: request origin is not an authorized extension");
                 }
             }
         }
     }
-    Ok(None)
+    Ok(origin_val)
 }
 
 /// Verifies whether the incoming request contains the valid authorization token for /show.
@@ -130,6 +143,7 @@ pub struct BridgeServer {
     port: u16,
     prompt_tx: Option<tokio::sync::mpsc::Sender<ExtensionDownloadRequest>>,
     show_tx: Option<tokio::sync::mpsc::Sender<()>>,
+    quit_tx: Option<tokio::sync::mpsc::Sender<()>>,
     wake_cb: Option<Arc<dyn Fn() + Send + Sync>>,
     download_wake_cb: Option<Arc<dyn Fn() + Send + Sync>>,
 }
@@ -141,6 +155,7 @@ impl BridgeServer {
             port,
             prompt_tx: None,
             show_tx: None,
+            quit_tx: None,
             wake_cb: None,
             download_wake_cb: None,
         }
@@ -156,6 +171,7 @@ impl BridgeServer {
             port,
             prompt_tx: Some(prompt_tx),
             show_tx: None,
+            quit_tx: None,
             wake_cb: None,
             download_wake_cb: None,
         }
@@ -168,6 +184,11 @@ impl BridgeServer {
 
     pub fn with_show_notifier(mut self, tx: tokio::sync::mpsc::Sender<()>) -> Self {
         self.show_tx = Some(tx);
+        self
+    }
+
+    pub fn with_quit_notifier(mut self, tx: tokio::sync::mpsc::Sender<()>) -> Self {
+        self.quit_tx = Some(tx);
         self
     }
 
@@ -203,6 +224,7 @@ impl BridgeServer {
 
         let prompt_tx = self.prompt_tx.map(Arc::new);
         let show_tx = self.show_tx.map(Arc::new);
+        let quit_tx = self.quit_tx.map(Arc::new);
         let wake_cb = self.wake_cb.clone();
         let download_wake_cb = self.download_wake_cb.clone();
         let bridge_token = Arc::new(get_or_create_bridge_token());
@@ -219,6 +241,7 @@ impl BridgeServer {
                     let queue = Arc::clone(&self.queue);
                     let prompt_tx = prompt_tx.clone();
                     let show_tx = show_tx.clone();
+                    let quit_tx = quit_tx.clone();
                     let wake_cb = wake_cb.clone();
                     let download_wake_cb = download_wake_cb.clone();
                     let bridge_token = bridge_token.clone();
@@ -294,7 +317,7 @@ impl BridgeServer {
 
                         let cors_header = match allowed_origin {
                             Some(ref orig) => format!("Access-Control-Allow-Origin: {}\r\n", orig),
-                            None => "Access-Control-Allow-Origin: *\r\n".to_string(),
+                            None => String::new(),
                         };
 
                         // Handle CORS Preflight OPTIONS
@@ -317,7 +340,33 @@ impl BridgeServer {
                             let body = req.split("\r\n\r\n").nth(1).unwrap_or_default();
 
                             match serde_json::from_str::<ExtensionDownloadRequest>(body) {
-                                Ok(dl_req) => {
+                                Ok(mut dl_req) => {
+                                    if let Err(e) = crate::probe::validate_http_url(&dl_req.url) {
+                                        let err_json = serde_json::json!({
+                                            "success": false,
+                                            "error": e.to_string(),
+                                        }).to_string();
+                                        let resp = format!(
+                                            "HTTP/1.1 400 Bad Request\r\n\
+                                             {}Content-Type: application/json\r\n\
+                                             Content-Length: {}\r\n\
+                                             Connection: close\r\n\r\n{}",
+                                            cors_header,
+                                            err_json.len(),
+                                            err_json
+                                        );
+                                        let _ = socket.write_all(resp.as_bytes()).await;
+                                        let _ = socket.flush().await;
+                                        return;
+                                    }
+
+                                    dl_req.filename = dl_req
+                                        .filename
+                                        .as_deref()
+                                        .map(str::trim)
+                                        .filter(|s| !s.is_empty())
+                                        .map(crate::probe::sanitize_filename);
+
                                     if let Some(ref cb) = download_wake_cb {
                                         cb();
                                     }
@@ -340,8 +389,14 @@ impl BridgeServer {
                                         return;
                                     }
 
+                                    let output_path = dl_req.filename.as_ref().map(|fname| {
+                                        let cat = crate::category::Category::detect_from_filename(fname);
+                                        cat.default_dir().join(fname)
+                                    });
+
                                     let options = DownloadOptions {
                                         url: dl_req.url.clone(),
+                                        output_path,
                                         num_segments: dl_req.num_segments.unwrap_or(8),
                                         cookie: dl_req.cookies,
                                         referer: dl_req.referer,
@@ -436,6 +491,38 @@ impl BridgeServer {
                                 cb();
                             }
                             let json_resp = "{\"status\":\"ok\"}";
+                            let resp = format!(
+                                "HTTP/1.1 200 OK\r\n\
+                                 {}Content-Type: application/json\r\n\
+                                 Content-Length: {}\r\n\
+                                 Connection: close\r\n\r\n{}",
+                                cors_header,
+                                json_resp.len(),
+                                json_resp
+                            );
+                            let _ = socket.write_all(resp.as_bytes()).await;
+                            let _ = socket.flush().await;
+                        } else if req.starts_with("POST /quit") {
+                            if !is_authorized_show_request(&req, &bridge_token) {
+                                let err_resp = "{\"error\":\"unauthorized\"}";
+                                let resp = format!(
+                                    "HTTP/1.1 401 Unauthorized\r\n\
+                                     {}Content-Type: application/json\r\n\
+                                     Content-Length: {}\r\n\
+                                     Connection: close\r\n\r\n{}",
+                                    cors_header,
+                                    err_resp.len(),
+                                    err_resp
+                                );
+                                let _ = socket.write_all(resp.as_bytes()).await;
+                                let _ = socket.flush().await;
+                                return;
+                            }
+
+                            if let Some(ref tx) = quit_tx {
+                                let _ = tx.send(()).await;
+                            }
+                            let json_resp = "{\"status\":\"quitting\"}";
                             let resp = format!(
                                 "HTTP/1.1 200 OK\r\n\
                                  {}Content-Type: application/json\r\n\
