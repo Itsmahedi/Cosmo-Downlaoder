@@ -11,6 +11,21 @@ use crate::icons;
 use crate::platform;
 use crate::theme::ThemeColors;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SortColumn {
+    Added,
+    Name,
+    Size,
+    Progress,
+    Speed,
+    Status,
+}
+
+#[derive(Default)]
+pub struct TableAction {
+    pub request_delete_ids: Vec<String>,
+}
+
 pub fn render_download_table(
     ui: &mut egui::Ui,
     pal: &ThemeColors,
@@ -19,7 +34,10 @@ pub fn render_download_table(
     ema_speeds: &HashMap<String, f64>,
     selected_ids: &mut HashSet<String>,
     queue: &Arc<QueueManager>,
-) {
+    sort_col: &mut SortColumn,
+    sort_asc: &mut bool,
+) -> TableAction {
+    let mut table_action = TableAction::default();
     let avail_w = ui.available_width();
     let compact = avail_w < 580.0;
 
@@ -50,17 +68,16 @@ pub fn render_download_table(
         }
     }
 
-    let hdr_font = egui::FontId::proportional(12.0);
-    let mid_y = th_rect.center().y;
-    ui.painter().text(pos2(cols.name_x, mid_y), egui::Align2::LEFT_CENTER, "File name", hdr_font.clone(), pal.muted);
+    draw_sort_header(ui, pal, th_rect, cols.name_x, cols.name_w, "File name", SortColumn::Name, sort_col, sort_asc);
     if !compact {
-        ui.painter().text(pos2(cols.size_x, mid_y), egui::Align2::LEFT_CENTER, "Size", hdr_font.clone(), pal.muted);
+        draw_sort_header(ui, pal, th_rect, cols.size_x, 92.0, "Size", SortColumn::Size, sort_col, sort_asc);
     }
-    ui.painter().text(pos2(cols.prog_x, mid_y), egui::Align2::LEFT_CENTER, "Progress", hdr_font.clone(), pal.muted);
+    draw_sort_header(ui, pal, th_rect, cols.prog_x, cols.prog_w, "Progress", SortColumn::Progress, sort_col, sort_asc);
     if !compact {
-        ui.painter().text(pos2(cols.speed_x, mid_y), egui::Align2::LEFT_CENTER, "Speed", hdr_font.clone(), pal.muted);
+        draw_sort_header(ui, pal, th_rect, cols.speed_x, 100.0, "Speed", SortColumn::Speed, sort_col, sort_asc);
     }
-    ui.painter().text(pos2(cols.status_x, mid_y), egui::Align2::LEFT_CENTER, "Status", hdr_font, pal.muted);
+    let status_w = if compact { 96.0 } else { 108.0 };
+    draw_sort_header(ui, pal, th_rect, cols.status_x, status_w, "Status", SortColumn::Status, sort_col, sort_asc);
 
     // Rows area (.rows)
     if rows.is_empty() {
@@ -72,7 +89,7 @@ pub fn render_download_table(
                     .color(pal.muted),
             );
         });
-        return;
+        return table_action;
     }
 
     egui::ScrollArea::vertical()
@@ -81,9 +98,59 @@ pub fn render_download_table(
         .show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
             for record in rows {
-                render_table_row(ui, pal, record, progress_map, ema_speeds, selected_ids, queue, compact);
+                if let Some(del_id) = render_table_row(ui, pal, record, progress_map, ema_speeds, selected_ids, queue, compact) {
+                    table_action.request_delete_ids.push(del_id);
+                }
             }
         });
+
+    table_action
+}
+
+fn draw_sort_header(
+    ui: &mut egui::Ui,
+    pal: &ThemeColors,
+    th_rect: Rect,
+    x: f32,
+    width: f32,
+    label: &str,
+    col: SortColumn,
+    sort_col: &mut SortColumn,
+    sort_asc: &mut bool,
+) {
+    let rect = Rect::from_min_max(pos2(x, th_rect.top()), pos2(x + width, th_rect.bottom()));
+    let resp = ui.interact(rect, ui.id().with(("hdr_sort", label)), egui::Sense::click());
+    let text = if *sort_col == col {
+        let arrow = if *sort_asc { "▲" } else { "▼" };
+        format!("{} {}", label, arrow)
+    } else {
+        label.to_string()
+    };
+    let color = if *sort_col == col || resp.hovered() {
+        pal.text
+    } else {
+        pal.muted
+    };
+    ui.painter().text(
+        pos2(x, th_rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        text,
+        egui::FontId::proportional(12.0),
+        color,
+    );
+    if resp.clicked() {
+        if *sort_col == col {
+            if *sort_asc {
+                *sort_asc = false;
+            } else {
+                *sort_col = SortColumn::Added;
+                *sort_asc = false;
+            }
+        } else {
+            *sort_col = col;
+            *sort_asc = true;
+        }
+    }
 }
 
 struct ColLayout {
@@ -139,7 +206,8 @@ fn render_table_row(
     selected_ids: &mut HashSet<String>,
     queue: &Arc<QueueManager>,
     compact: bool,
-) {
+) -> Option<String> {
+    let mut delete_request = None;
     let row_rect = ui.allocate_space(Vec2::new(ui.available_width(), 48.0)).1;
     let cols = compute_columns(row_rect, compact);
 
@@ -186,6 +254,14 @@ fn render_table_row(
         }
     }
 
+    if record.status == "failed" {
+        if let Some(ref err_msg) = record.error_message {
+            if !err_msg.is_empty() {
+                row_resp.clone().on_hover_text(err_msg);
+            }
+        }
+    }
+
     row_resp.context_menu(|ui| {
         ui.set_min_width(160.0);
         if record.status == "completed" {
@@ -208,7 +284,8 @@ fn render_table_row(
                 ui.close_menu();
             }
         } else if record.status == "paused" || record.status == "failed" {
-            if ui.button("Resume").clicked() {
+            let lbl = if record.status == "failed" { "Retry" } else { "Resume" };
+            if ui.button(lbl).clicked() {
                 let q_id = record.id.clone();
                 let q = Arc::clone(queue);
                 tokio::spawn(async move {
@@ -223,12 +300,7 @@ fn render_table_row(
         }
         ui.separator();
         if ui.button("Delete").clicked() {
-            let q_id = record.id.clone();
-            let q = Arc::clone(queue);
-            selected_ids.remove(&record.id);
-            tokio::spawn(async move {
-                let _ = q.remove(&q_id, false).await;
-            });
+            delete_request = Some(record.id.clone());
             ui.close_menu();
         }
     });
@@ -347,13 +419,21 @@ fn render_table_row(
         "failed" => "Failed",
         other => other,
     };
+    let status_color = if record.status == "failed" {
+        pal.danger
+    } else if record.status == "downloading" {
+        pal.accent
+    } else {
+        pal.muted
+    };
     ui.painter().text(
         pos2(cols.status_x, mid_y),
         egui::Align2::LEFT_CENTER,
         status_label,
         egui::FontId::proportional(12.0),
-        pal.muted,
+        status_color,
     );
+    delete_request
 }
 
 fn draw_checkbox(

@@ -57,6 +57,11 @@ pub struct CosmoDownloaderApp {
     pub ema_speeds: HashMap<String, f64>,
     pub selected_category: CategoryFilter,
     pub selected_ids: HashSet<String>,
+    pub search_query: String,
+    pub sort_col: download_table::SortColumn,
+    pub sort_asc: bool,
+    pub pending_delete_ids: Vec<String>,
+    pub delete_also_files: bool,
     pub is_dark: bool,
     pub logo_texture: Option<egui::TextureHandle>,
 
@@ -87,11 +92,16 @@ pub struct CosmoDownloaderApp {
     pub add_checksum: String,
     pub add_cookies: Option<String>,
     pub add_referer: Option<String>,
+    pub add_user_agent: Option<String>,
     pub add_file_size: Option<u64>,
+    pub add_is_probing: bool,
+    pub add_error_message: Option<String>,
     pub add_description: String,
     pub add_remember_category: bool,
     pub show_notes_expanded: bool,
+    pub show_advanced_add: bool,
     pub size_probe_rx: Option<mpsc::Receiver<(Option<u64>, Option<String>)>>,
+    pub category_save_dirs: HashMap<String, String>,
 
     // Settings fields
     pub setting_max_concurrent: usize,
@@ -234,6 +244,7 @@ impl CosmoDownloaderApp {
             saved_start_min,
             saved_dont_complete,
             saved_theme,
+            saved_cat_dirs,
         ) = {
             let rt = tokio::runtime::Handle::current();
             rt.block_on(async {
@@ -316,6 +327,15 @@ impl CosmoDownloaderApp {
                     .map(|v| v == "true")
                     .unwrap_or(false);
                 let ui_theme = db.get_setting("ui_theme").await.ok().flatten();
+                let mut cat_dirs = HashMap::new();
+                for cat_key in ["video", "music", "documents", "compressed", "programs", "general"] {
+                    let setting_k = format!("category_dir_{}", cat_key);
+                    if let Ok(Some(val)) = db.get_setting(&setting_k).await {
+                        if !val.trim().is_empty() {
+                            cat_dirs.insert(cat_key.to_string(), val);
+                        }
+                    }
+                }
 
                 queue.set_max_concurrent(max_c).await;
                 queue.set_global_speed_limit(speed_bps).await;
@@ -336,6 +356,7 @@ impl CosmoDownloaderApp {
                     start_min,
                     dont_complete,
                     ui_theme,
+                    cat_dirs,
                 )
             })
         };
@@ -391,6 +412,11 @@ impl CosmoDownloaderApp {
             ema_speeds: HashMap::new(),
             selected_category: initial_category,
             selected_ids: HashSet::new(),
+            search_query: String::new(),
+            sort_col: download_table::SortColumn::Added,
+            sort_asc: false,
+            pending_delete_ids: Vec::new(),
+            delete_also_files: false,
             is_dark,
             logo_texture,
 
@@ -423,11 +449,16 @@ impl CosmoDownloaderApp {
             add_checksum: String::new(),
             add_cookies: None,
             add_referer: None,
+            add_user_agent: None,
             add_file_size: None,
+            add_is_probing: false,
+            add_error_message: None,
             add_description: String::new(),
             add_remember_category: false,
             show_notes_expanded: false,
+            show_advanced_add: false,
             size_probe_rx: None,
+            category_save_dirs: saved_cat_dirs,
 
             setting_max_concurrent: saved_max_conc,
             setting_global_speed_kb: saved_speed_bps / 1024,
@@ -456,9 +487,9 @@ impl CosmoDownloaderApp {
         };
 
         if let Some(req) = standalone_req {
-            app.prepare_download_dialog(&req.url, req.filename, req.cookies, req.referer, req.num_segments);
+            app.prepare_download_dialog(&req.url, req.filename, req.cookies, req.referer, req.user_agent, req.num_segments);
         } else if let Some(url_arg) = initial_url_arg {
-            app.prepare_download_dialog(&url_arg, None, None, None, None);
+            app.prepare_download_dialog(&url_arg, None, None, None, None, None);
         }
 
         app
@@ -497,21 +528,90 @@ impl CosmoDownloaderApp {
         self.downloads = downloads;
     }
 
+    pub fn resolve_save_dir_for_category(&self, cat: Category) -> String {
+        let key = cat.name().to_ascii_lowercase();
+        if let Some(saved) = self.category_save_dirs.get(&key) {
+            if !saved.trim().is_empty() {
+                return saved.clone();
+            }
+        }
+        if !self.setting_default_save_dir.trim().is_empty() {
+            return self.setting_default_save_dir.clone();
+        }
+        cat.default_dir().to_string_lossy().to_string()
+    }
+
+    pub fn spawn_size_probe(&mut self) {
+        self.add_file_size = None;
+        self.add_is_probing = false;
+        self.size_probe_rx = None;
+        if self.add_url.trim().is_empty() || rustget_core::youtube::is_streaming_site(&self.add_url) {
+            return;
+        }
+        if rustget_core::probe::validate_http_url(&self.add_url).is_err() {
+            return;
+        }
+        if let Ok(parsed_url) = url::Url::parse(self.add_url.trim()) {
+            let (tx, rx) = mpsc::channel(1);
+            self.size_probe_rx = Some(rx);
+            self.add_is_probing = true;
+            let cookies_clone = self.add_cookies.clone();
+            let referer_clone = self.add_referer.clone();
+            let ua_clone = self.add_user_agent.clone();
+            let proxy_clone = self.setting_proxy_url.clone();
+            tokio::spawn(async move {
+                let mut builder = reqwest::Client::builder().timeout(Duration::from_secs(4));
+                if !proxy_clone.trim().is_empty() {
+                    if let Ok(p) = reqwest::Proxy::all(proxy_clone.trim()) {
+                        builder = builder.proxy(p);
+                    }
+                }
+                if let Ok(c) = builder.build() {
+                    let mut headers = reqwest::header::HeaderMap::new();
+                    if let Some(ref ua) = ua_clone {
+                        if let Ok(hv) = reqwest::header::HeaderValue::from_str(ua) {
+                            headers.insert(reqwest::header::USER_AGENT, hv);
+                        }
+                    }
+                    if let Some(ref r) = referer_clone {
+                        if let Ok(hv) = reqwest::header::HeaderValue::from_str(r) {
+                            headers.insert(reqwest::header::REFERER, hv);
+                        }
+                    }
+                    if let Some(ref ck) = cookies_clone {
+                        if let Ok(hv) = reqwest::header::HeaderValue::from_str(ck) {
+                            headers.insert(reqwest::header::COOKIE, hv);
+                        }
+                    }
+                    if let Ok(info) = rustget_core::probe::probe_url(&c, &parsed_url, &headers).await {
+                        let _ = tx.send((info.content_length, Some(info.suggested_filename))).await;
+                    }
+                }
+            });
+        }
+    }
+
     pub fn prepare_download_dialog(
         &mut self,
         url: &str,
         filename: Option<String>,
         cookies: Option<String>,
         referer: Option<String>,
+        user_agent: Option<String>,
         num_segments: Option<usize>,
     ) {
         self.add_url = url.trim().to_string();
         self.add_cookies = cookies;
         self.add_referer = referer;
+        self.add_user_agent = user_agent;
         self.add_connections = num_segments.unwrap_or(self.setting_default_connections).clamp(1, 32);
+        self.add_speed_limit_kb = 0;
+        self.add_checksum.clear();
         self.add_description.clear();
+        self.add_error_message = None;
         self.add_file_size = None;
-        self.add_remember_category = true;
+        self.add_remember_category = false;
+        self.show_advanced_add = false;
 
         if let Some(f) = filename {
             if !f.trim().is_empty() {
@@ -533,49 +633,32 @@ impl CosmoDownloaderApp {
             categorize(Some(&self.add_filename), None)
         };
         self.add_category = cat.name().to_string();
-        self.add_save_dir = if !self.setting_default_save_dir.trim().is_empty() {
-            self.setting_default_save_dir.clone()
-        } else {
-            cat.default_dir().to_string_lossy().to_string()
-        };
+        self.add_save_dir = self.resolve_save_dir_for_category(cat);
         self.show_notes_expanded = false;
         self.show_add_dialog = true;
 
-        if !rustget_core::youtube::is_streaming_site(&self.add_url) {
-            let (tx, rx) = mpsc::channel(1);
-            self.size_probe_rx = Some(rx);
-            if let Ok(parsed_url) = url::Url::parse(&self.add_url) {
-                let cookies_clone = self.add_cookies.clone();
-                let referer_clone = self.add_referer.clone();
-                tokio::spawn(async move {
-                    let client = reqwest::Client::builder()
-                        .timeout(Duration::from_secs(3))
-                        .build();
-                    if let Ok(c) = client {
-                        let mut headers = reqwest::header::HeaderMap::new();
-                        if let Some(ref r) = referer_clone {
-                            if let Ok(hv) = reqwest::header::HeaderValue::from_str(r) {
-                                headers.insert(reqwest::header::REFERER, hv);
-                            }
-                        }
-                        if let Some(ref ck) = cookies_clone {
-                            if let Ok(hv) = reqwest::header::HeaderValue::from_str(ck) {
-                                headers.insert(reqwest::header::COOKIE, hv);
-                            }
-                        }
-                        if let Ok(info) = rustget_core::probe::probe_url(&c, &parsed_url, &headers).await {
-                            let _ = tx.send((info.content_length, Some(info.suggested_filename))).await;
-                        }
-                    }
-                });
-            }
-        }
+        self.spawn_size_probe();
     }
 
-    pub fn trigger_download(&mut self, start_paused: bool) {
+    pub fn trigger_download(&mut self, start_paused: bool) -> bool {
         let url = self.add_url.trim().to_string();
-        if url.is_empty() {
-            return;
+        if let Err(err) = rustget_core::probe::validate_http_url(&url) {
+            self.add_error_message = Some(err.to_string());
+            return false;
+        }
+        self.add_error_message = None;
+
+        let chosen_cat = Category::from_name(&self.add_category);
+        if self.add_remember_category && !self.add_save_dir.trim().is_empty() {
+            if let Some(cat) = chosen_cat {
+                let key = cat.name().to_ascii_lowercase();
+                let dir_val = self.add_save_dir.trim().to_string();
+                self.category_save_dirs.insert(key.clone(), dir_val.clone());
+                let db = self.queue.db().clone();
+                tokio::spawn(async move {
+                    let _ = db.set_setting(&format!("category_dir_{}", key), &dir_val).await;
+                });
+            }
         }
 
         self.active_popup_filename = self.add_filename.clone();
@@ -583,7 +666,7 @@ impl CosmoDownloaderApp {
 
         let mut opt = DownloadOptions {
             url,
-            num_segments: self.add_connections,
+            num_segments: self.add_connections.clamp(1, 32),
             expected_sha256: if self.add_checksum.trim().is_empty() {
                 None
             } else {
@@ -598,7 +681,7 @@ impl CosmoDownloaderApp {
             Category::General.default_dir()
         };
         if !self.add_filename.trim().is_empty() {
-            out_path.push(self.add_filename.trim());
+            out_path.push(rustget_core::probe::sanitize_filename(self.add_filename.trim()));
         }
         self.active_popup_target_path = out_path.to_string_lossy().to_string();
         opt.output_path = Some(out_path);
@@ -609,6 +692,9 @@ impl CosmoDownloaderApp {
         if let Some(r) = self.add_referer.take() {
             opt.referer = Some(r);
         }
+        if let Some(ua) = self.add_user_agent.take() {
+            opt.user_agent = Some(ua);
+        }
 
         let q = Arc::clone(&self.queue);
         let speed_bps = self.add_speed_limit_kb * 1024;
@@ -618,16 +704,16 @@ impl CosmoDownloaderApp {
         let is_standalone = self.is_standalone_popup;
         tokio::spawn(async move {
             let res = if start_paused {
-                if let Ok(id) = q.add_download(opt, None, speed_bps).await {
+                if let Ok(id) = q.add_download(opt, chosen_cat, speed_bps).await {
                     let _ = q.pause(&id).await;
                     Ok(id)
                 } else {
                     Err(())
                 }
             } else if is_standalone {
-                q.start_download_immediately(opt, None, speed_bps).await.map_err(|_| ())
+                q.start_download_immediately(opt, chosen_cat, speed_bps).await.map_err(|_| ())
             } else {
-                q.add_download(opt, None, speed_bps).await.map_err(|_| ())
+                q.add_download(opt, chosen_cat, speed_bps).await.map_err(|_| ())
             };
 
             if let Ok(id) = res {
@@ -639,7 +725,12 @@ impl CosmoDownloaderApp {
         self.add_filename.clear();
         self.add_checksum.clear();
         self.add_description.clear();
+        self.add_speed_limit_kb = 0;
+        self.add_file_size = None;
+        self.add_is_probing = false;
+        self.size_probe_rx = None;
         self.show_add_dialog = false;
+        true
     }
 
     fn toggle_theme(&mut self, ctx: &egui::Context) {
@@ -691,15 +782,27 @@ impl CosmoDownloaderApp {
         });
     }
 
-    fn delete_selected(&mut self) {
+    fn request_delete_selected(&mut self) {
+        if self.selected_ids.is_empty() {
+            return;
+        }
+        self.pending_delete_ids = self.selected_ids.iter().cloned().collect();
+        self.delete_also_files = false;
+    }
+
+    fn execute_pending_delete(&mut self) {
         let q = Arc::clone(&self.queue);
-        let ids: Vec<String> = self.selected_ids.drain().collect();
+        let ids: Vec<String> = self.pending_delete_ids.drain(..).collect();
         if ids.is_empty() {
             return;
         }
+        let also_files = self.delete_also_files;
+        for id in &ids {
+            self.selected_ids.remove(id);
+        }
         tokio::spawn(async move {
             for id in ids {
-                let _ = q.remove(&id, false).await;
+                let _ = q.remove(&id, also_files).await;
             }
         });
     }
@@ -895,23 +998,36 @@ impl eframe::App for CosmoDownloaderApp {
         }
 
         // Size probe receiver
+        let mut clear_probe = false;
         if let Some(ref mut rx) = self.size_probe_rx {
-            if let Ok((sz, suggested_name)) = rx.try_recv() {
-                self.add_file_size = sz;
-                if let Some(name) = suggested_name {
-                    let cur_name = self.add_filename.trim().to_ascii_lowercase();
-                    if cur_name == "download"
-                        || cur_name == "download.bin"
-                        || !self.add_filename.contains('.')
-                        || (name.contains('.') && !cur_name.contains('.'))
-                    {
-                        self.add_filename = name.clone();
-                        let cat = categorize(Some(&name), None);
-                        self.add_category = cat.name().to_string();
-                        self.add_save_dir = cat.default_dir().to_string_lossy().to_string();
+            match rx.try_recv() {
+                Ok((sz, suggested_name)) => {
+                    self.add_is_probing = false;
+                    self.add_file_size = sz;
+                    if let Some(name) = suggested_name {
+                        let cur_name = self.add_filename.trim().to_ascii_lowercase();
+                        if cur_name == "download"
+                            || cur_name == "download.bin"
+                            || !self.add_filename.contains('.')
+                            || (name.contains('.') && !cur_name.contains('.'))
+                        {
+                            self.add_filename = name.clone();
+                            let cat = categorize(Some(&name), None);
+                            self.add_category = cat.name().to_string();
+                            self.add_save_dir = self.resolve_save_dir_for_category(cat);
+                        }
                     }
+                    clear_probe = true;
                 }
+                Err(tokio::sync::mpsc::error::TryRecvError::Disconnected) => {
+                    self.add_is_probing = false;
+                    clear_probe = true;
+                }
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty) => {}
             }
+        }
+        if clear_probe {
+            self.size_probe_rx = None;
         }
 
         // Event processing
@@ -919,6 +1035,18 @@ impl eframe::App for CosmoDownloaderApp {
             match event {
                 QueueEvent::TaskCompleted(id) => {
                     self.refresh_downloads();
+                    if self.setting_notifications_enabled {
+                        let fname = self
+                            .downloads
+                            .iter()
+                            .find(|d| d.id == id)
+                            .map(|d| d.filename.clone())
+                            .unwrap_or_else(|| self.active_popup_filename.clone());
+                        platform::show_desktop_notification(
+                            "Download complete",
+                            &format!("{} finished downloading.", fname),
+                        );
+                    }
                     if self.is_progress_popup_mode {
                         self.is_progress_popup_mode = false;
                     }
@@ -993,8 +1121,23 @@ impl eframe::App for CosmoDownloaderApp {
                         platform::make_popup_topmost();
                     }
                 }
-                QueueEvent::TaskAdded(_) | QueueEvent::TaskFailed { .. } => {
+                QueueEvent::TaskAdded(_) => {
                     self.refresh_downloads();
+                }
+                QueueEvent::TaskFailed { id, error } => {
+                    self.refresh_downloads();
+                    if self.setting_notifications_enabled {
+                        let fname = self
+                            .downloads
+                            .iter()
+                            .find(|d| d.id == id)
+                            .map(|d| d.filename.clone())
+                            .unwrap_or_else(|| "Download".to_string());
+                        platform::show_desktop_notification(
+                            "Download failed",
+                            &format!("{}: {}", fname, error),
+                        );
+                    }
                 }
                 QueueEvent::StatusChanged { id, status } => {
                     if status == "completed" || status == "paused" || status == "failed" {
@@ -1034,7 +1177,14 @@ impl eframe::App for CosmoDownloaderApp {
 
         // Browser extension download requests
         while let Ok(req) = self.browser_dl_rx.try_recv() {
-            self.prepare_download_dialog(&req.url, req.filename, req.cookies, req.referer, req.num_segments);
+            self.prepare_download_dialog(
+                &req.url,
+                req.filename,
+                req.cookies,
+                req.referer,
+                req.user_agent,
+                req.num_segments,
+            );
             self.is_popup_mode = true;
             self.popup_opened_at = Some(std::time::Instant::now());
             self.is_progress_popup_mode = false;
@@ -1057,7 +1207,7 @@ impl eframe::App for CosmoDownloaderApp {
         // Clipboard events
         while let Ok(url) = self.clipboard_rx.try_recv() {
             if self.setting_clipboard_monitor {
-                self.prepare_download_dialog(&url, None, None, None, None);
+                self.prepare_download_dialog(&url, None, None, None, None, None);
                 self.is_popup_mode = true;
                 self.popup_opened_at = Some(std::time::Instant::now());
                 self.is_progress_popup_mode = false;
@@ -1212,24 +1362,41 @@ impl eframe::App for CosmoDownloaderApp {
             egui::CentralPanel::default()
                 .frame(egui::Frame::none().fill(pal.surface).inner_margin(Margin::same(20.0)))
                 .show(ctx, |ui| {
-                    let outcome = render_add_download_dialog(
-                        ui,
-                        pal,
-                        &mut self.add_url,
-                        &mut self.add_filename,
-                        &mut self.add_category,
-                        &mut self.add_save_dir,
-                        &mut self.add_remember_category,
-                        &mut self.add_description,
-                        self.add_file_size,
-                        &mut self.show_notes_expanded,
-                    );
+                    let mut dlg_state = AddDialogState {
+                        url: &mut self.add_url,
+                        filename: &mut self.add_filename,
+                        category: &mut self.add_category,
+                        save_dir: &mut self.add_save_dir,
+                        connections: &mut self.add_connections,
+                        speed_limit_kb: &mut self.add_speed_limit_kb,
+                        checksum: &mut self.add_checksum,
+                        remember_category: &mut self.add_remember_category,
+                        description: &mut self.add_description,
+                        file_size: self.add_file_size,
+                        is_probing: self.add_is_probing,
+                        error_message: self.add_error_message.as_deref(),
+                        show_notes_expanded: &mut self.show_notes_expanded,
+                        show_advanced_expanded: &mut self.show_advanced_add,
+                    };
+                    let outcome = render_add_download_dialog(ui, pal, &mut dlg_state);
+
+                    if outcome.url_changed {
+                        self.add_error_message = None;
+                        if let Some(c) = Category::from_name(&self.add_category) {
+                            self.add_save_dir = self.resolve_save_dir_for_category(c);
+                        }
+                        self.spawn_size_probe();
+                    }
+                    if outcome.category_changed {
+                        if let Some(c) = Category::from_name(&self.add_category) {
+                            self.add_save_dir = self.resolve_save_dir_for_category(c);
+                        }
+                    }
 
                     if outcome.open_settings {
                         self.show_settings_dialog = true;
                     }
-                    if outcome.download_later {
-                        self.trigger_download(true);
+                    if outcome.download_later && self.trigger_download(true) {
                         self.is_popup_mode = false;
                         self.popup_opened_at = None;
                         if self.is_standalone_popup {
@@ -1242,8 +1409,7 @@ impl eframe::App for CosmoDownloaderApp {
                             }
                         }
                     }
-                    if outcome.start_now {
-                        self.trigger_download(false);
+                    if outcome.start_now && self.trigger_download(false) {
                         self.is_popup_mode = false;
                         self.popup_opened_at = None;
                         self.is_progress_popup_mode = true;
@@ -1263,6 +1429,9 @@ impl eframe::App for CosmoDownloaderApp {
                         self.show_add_dialog = false;
                         self.add_url.clear();
                         self.add_filename.clear();
+                        self.add_error_message = None;
+                        self.add_is_probing = false;
+                        self.size_probe_rx = None;
                         self.is_popup_mode = false;
                         self.popup_opened_at = None;
                         if self.is_standalone_popup {
@@ -1287,13 +1456,60 @@ impl eframe::App for CosmoDownloaderApp {
         let prev_cat = self.selected_category;
         let cat_counts = compute_category_counts(&self.downloads);
 
+        let needle = self.search_query.trim().to_ascii_lowercase();
         let filtered_ids: Vec<String> = self
             .downloads
             .iter()
             .filter(|d| self.selected_category.matches(&d.category))
+            .filter(|d| {
+                needle.is_empty()
+                    || d.filename.to_ascii_lowercase().contains(&needle)
+                    || d.url.to_ascii_lowercase().contains(&needle)
+            })
             .map(|d| d.id.clone())
             .collect();
         let filtered_count = filtered_ids.len();
+
+        // Keyboard shortcuts for desktop ergonomics
+        let modal_open = self.show_add_dialog
+            || self.show_settings_dialog
+            || self.show_about_dialog
+            || !self.pending_delete_ids.is_empty();
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            if !self.pending_delete_ids.is_empty() {
+                self.pending_delete_ids.clear();
+            } else if self.show_add_dialog {
+                self.show_add_dialog = false;
+                self.add_error_message = None;
+            } else if self.show_settings_dialog {
+                self.show_settings_dialog = false;
+            } else if self.show_about_dialog {
+                self.show_about_dialog = false;
+            } else {
+                self.selected_ids.clear();
+            }
+        } else if !modal_open && !ctx.wants_keyboard_input() {
+            if ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::N)) {
+                self.add_error_message = None;
+                self.show_add_dialog = true;
+            } else if ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::A)) {
+                for id in &filtered_ids {
+                    self.selected_ids.insert(id.clone());
+                }
+            } else if ctx.input(|i| i.key_pressed(egui::Key::Delete)) {
+                self.request_delete_selected();
+            } else if ctx.input(|i| i.key_pressed(egui::Key::Space)) {
+                let any_active = self.downloads.iter().any(|d| {
+                    self.selected_ids.contains(&d.id)
+                        && (d.status == "downloading" || d.status == "queued")
+                });
+                if any_active {
+                    self.pause_selected();
+                } else if !self.selected_ids.is_empty() {
+                    self.resume_selected();
+                }
+            }
+        }
 
         let total_speed: f64 = self.active_progress.values().map(|p| p.speed_bps).sum();
 
@@ -1345,7 +1561,7 @@ impl eframe::App for CosmoDownloaderApp {
                     self.pause_selected();
                 }
                 if m_act.delete_selected {
-                    self.delete_selected();
+                    self.request_delete_selected();
                 }
                 if m_act.resume_all {
                     self.resume_all();
@@ -1392,8 +1608,14 @@ impl eframe::App for CosmoDownloaderApp {
             .exact_height(60.0)
             .frame(egui::Frame::none().fill(pal.surface).inner_margin(Margin::same(0.0)))
             .show(ctx, |ui| {
-                let tb = toolbar::render_toolbar(ui, pal, !self.selected_ids.is_empty());
+                let tb = toolbar::render_toolbar(
+                    ui,
+                    pal,
+                    !self.selected_ids.is_empty(),
+                    &mut self.search_query,
+                );
                 if tb.add_clicked {
+                    self.add_error_message = None;
                     self.show_add_dialog = true;
                 }
                 if tb.resume_clicked {
@@ -1403,7 +1625,7 @@ impl eframe::App for CosmoDownloaderApp {
                     self.pause_selected();
                 }
                 if tb.delete_clicked {
-                    self.delete_selected();
+                    self.request_delete_selected();
                 }
                 if tb.options_clicked {
                     self.show_settings_dialog = true;
@@ -1464,12 +1686,62 @@ impl eframe::App for CosmoDownloaderApp {
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(pal_refresh.surface).inner_margin(Margin::same(0.0)))
             .show(ctx, |ui| {
-                let filtered_downloads: Vec<&DownloadRecord> = self
+                let mut filtered_downloads: Vec<&DownloadRecord> = self
                     .downloads
                     .iter()
                     .filter(|d| self.selected_category.matches(&d.category))
+                    .filter(|d| {
+                        needle.is_empty()
+                            || d.filename.to_ascii_lowercase().contains(&needle)
+                            || d.url.to_ascii_lowercase().contains(&needle)
+                    })
                     .collect();
-                download_table::render_download_table(
+
+                if self.sort_col != download_table::SortColumn::Added {
+                    let sort_col = self.sort_col;
+                    let asc = self.sort_asc;
+                    let prog_map = &self.active_progress;
+                    let ema_map = &self.ema_speeds;
+                    filtered_downloads.sort_by(|a, b| {
+                        let ord = match sort_col {
+                            download_table::SortColumn::Added => a.created_at.cmp(&b.created_at),
+                            download_table::SortColumn::Name => {
+                                a.filename.to_ascii_lowercase().cmp(&b.filename.to_ascii_lowercase())
+                            }
+                            download_table::SortColumn::Size => {
+                                let sa = a.total_size.unwrap_or(a.downloaded_bytes);
+                                let sb = b.total_size.unwrap_or(b.downloaded_bytes);
+                                sa.cmp(&sb)
+                            }
+                            download_table::SortColumn::Progress => {
+                                let pct = |r: &DownloadRecord| -> u64 {
+                                    let dl = prog_map.get(&r.id).map(|p| p.downloaded_bytes).unwrap_or(r.downloaded_bytes);
+                                    let tot = prog_map.get(&r.id).and_then(|p| p.total_bytes).or(r.total_size);
+                                    match tot {
+                                        Some(t) if t > 0 => (dl.saturating_mul(10_000)) / t,
+                                        _ if r.status == "completed" => 10_000,
+                                        _ => 0,
+                                    }
+                                };
+                                pct(a).cmp(&pct(b))
+                            }
+                            download_table::SortColumn::Speed => {
+                                let sp = |r: &DownloadRecord| -> f64 {
+                                    if r.status == "downloading" {
+                                        prog_map.get(&r.id).map(|p| ema_map.get(&r.id).copied().unwrap_or(p.speed_bps)).unwrap_or(0.0)
+                                    } else {
+                                        0.0
+                                    }
+                                };
+                                sp(a).partial_cmp(&sp(b)).unwrap_or(std::cmp::Ordering::Equal)
+                            }
+                            download_table::SortColumn::Status => a.status.cmp(&b.status),
+                        };
+                        if asc { ord } else { ord.reverse() }
+                    });
+                }
+
+                let tbl_action = download_table::render_download_table(
                     ui,
                     pal_refresh,
                     &filtered_downloads,
@@ -1477,8 +1749,73 @@ impl eframe::App for CosmoDownloaderApp {
                     &self.ema_speeds,
                     &mut self.selected_ids,
                     &self.queue,
+                    &mut self.sort_col,
+                    &mut self.sort_asc,
                 );
+                if !tbl_action.request_delete_ids.is_empty() {
+                    self.pending_delete_ids = tbl_action.request_delete_ids;
+                    self.delete_also_files = false;
+                }
             });
+
+        // Confirm Delete Modal Dialog
+        if !self.pending_delete_ids.is_empty() {
+            let mut confirm_delete = false;
+            let mut cancel_delete = false;
+            let del_count = self.pending_delete_ids.len();
+            egui::Window::new("Delete Download")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
+                .frame(
+                    egui::Frame::none()
+                        .fill(pal_refresh.surface)
+                        .stroke(Stroke::new(1.0_f32, pal_refresh.line))
+                        .inner_margin(Margin::same(20.0))
+                        .rounding(shapes::R),
+                )
+                .show(ctx, |ui| {
+                    ui.set_width(360.0);
+                    let prompt = if del_count == 1 {
+                        "Remove the selected download from the queue?".to_string()
+                    } else {
+                        format!("Remove {} selected downloads from the queue?", del_count)
+                    };
+                    ui.label(egui::RichText::new(prompt).size(13.5).color(pal_refresh.text));
+                    ui.add_space(10.0);
+                    ui.checkbox(
+                        &mut self.delete_also_files,
+                        egui::RichText::new("Also delete downloaded file(s) from disk")
+                            .size(12.5)
+                            .color(pal_refresh.muted),
+                    );
+                    ui.add_space(16.0);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let del_btn = egui::Button::new(
+                            egui::RichText::new("Delete").size(13.0).color(pal_refresh.on_accent),
+                        )
+                        .fill(pal_refresh.danger)
+                        .min_size(Vec2::new(84.0, shapes::CONTROL_HEIGHT))
+                        .rounding(shapes::R_SM);
+                        if ui.add(del_btn).clicked() {
+                            confirm_delete = true;
+                        }
+                        ui.add_space(8.0);
+                        if ui.add(
+                            egui::Button::new(egui::RichText::new("Cancel").size(13.0).color(pal_refresh.text))
+                                .min_size(Vec2::new(76.0, shapes::CONTROL_HEIGHT))
+                                .rounding(shapes::R_SM),
+                        ).clicked() {
+                            cancel_delete = true;
+                        }
+                    });
+                });
+            if confirm_delete {
+                self.execute_pending_delete();
+            } else if cancel_delete {
+                self.pending_delete_ids.clear();
+            }
+        }
 
         // Add Download Modal Dialog
         if self.show_add_dialog && !self.is_popup_mode {
@@ -1495,33 +1832,51 @@ impl eframe::App for CosmoDownloaderApp {
                 )
                 .show(ctx, |ui| {
                     ui.set_width(440.0);
-                    let outcome = render_add_download_dialog(
-                        ui,
-                        pal_refresh,
-                        &mut self.add_url,
-                        &mut self.add_filename,
-                        &mut self.add_category,
-                        &mut self.add_save_dir,
-                        &mut self.add_remember_category,
-                        &mut self.add_description,
-                        self.add_file_size,
-                        &mut self.show_notes_expanded,
-                    );
+                    let mut dlg_state = AddDialogState {
+                        url: &mut self.add_url,
+                        filename: &mut self.add_filename,
+                        category: &mut self.add_category,
+                        save_dir: &mut self.add_save_dir,
+                        connections: &mut self.add_connections,
+                        speed_limit_kb: &mut self.add_speed_limit_kb,
+                        checksum: &mut self.add_checksum,
+                        remember_category: &mut self.add_remember_category,
+                        description: &mut self.add_description,
+                        file_size: self.add_file_size,
+                        is_probing: self.add_is_probing,
+                        error_message: self.add_error_message.as_deref(),
+                        show_notes_expanded: &mut self.show_notes_expanded,
+                        show_advanced_expanded: &mut self.show_advanced_add,
+                    };
+                    let outcome = render_add_download_dialog(ui, pal_refresh, &mut dlg_state);
+                    if outcome.url_changed {
+                        self.add_error_message = None;
+                        if let Some(c) = Category::from_name(&self.add_category) {
+                            self.add_save_dir = self.resolve_save_dir_for_category(c);
+                        }
+                        self.spawn_size_probe();
+                    }
+                    if outcome.category_changed {
+                        if let Some(c) = Category::from_name(&self.add_category) {
+                            self.add_save_dir = self.resolve_save_dir_for_category(c);
+                        }
+                    }
                     if outcome.open_settings {
                         self.show_settings_dialog = true;
                     }
-                    if outcome.download_later {
-                        self.trigger_download(true);
+                    if outcome.download_later && self.trigger_download(true) {
                         self.show_add_dialog = false;
                     }
-                    if outcome.start_now {
-                        self.trigger_download(false);
+                    if outcome.start_now && self.trigger_download(false) {
                         self.show_add_dialog = false;
                     }
                     if outcome.cancel {
                         self.show_add_dialog = false;
                         self.add_url.clear();
                         self.add_filename.clear();
+                        self.add_error_message = None;
+                        self.add_is_probing = false;
+                        self.size_probe_rx = None;
                     }
                 });
         }

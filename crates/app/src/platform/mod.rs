@@ -105,6 +105,37 @@ pub fn system_prefers_dark() -> bool {
     true
 }
 
+pub fn show_desktop_notification(title: &str, body: &str) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let t = title.to_string();
+        let b = body.to_string();
+        std::thread::spawn(move || {
+            let ps_script = concat!(
+                "try { ",
+                "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null; ",
+                "[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null; ",
+                "$t = [System.Security.SecurityElement]::Escape($env:COSMO_NOTIFY_TITLE); ",
+                "$b = [System.Security.SecurityElement]::Escape($env:COSMO_NOTIFY_BODY); ",
+                "$xml = New-Object Windows.Data.Xml.Dom.XmlDocument; ",
+                "$xml.LoadXml(\"<toast><visual><binding template='ToastGeneric'><text>$t</text><text>$b</text></binding></visual></toast>\"); ",
+                "$toast = [Windows.UI.Notifications.ToastNotification]::new($xml); ",
+                "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Cosmo Downloader').Show($toast); ",
+                "} catch {}"
+            );
+            let mut cmd = std::process::Command::new("powershell");
+            cmd.args(["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-Command", ps_script])
+                .env("COSMO_NOTIFY_TITLE", t)
+                .env("COSMO_NOTIFY_BODY", b)
+                .creation_flags(windows::CREATE_NO_WINDOW);
+            let _ = cmd.spawn();
+        });
+    }
+    #[cfg(not(windows))]
+    let _ = (title, body);
+}
+
 pub fn ensure_native_host_registered() {
     #[cfg(windows)]
     std::thread::spawn(|| {

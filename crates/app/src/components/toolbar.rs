@@ -14,6 +14,7 @@ pub fn render_toolbar(
     ui: &mut egui::Ui,
     pal: &ThemeColors,
     has_selection: bool,
+    search_query: &mut String,
 ) -> ToolbarAction {
     let mut action = ToolbarAction {
         add_clicked: false,
@@ -62,6 +63,30 @@ pub fn render_toolbar(
 
     if toolbar_btn(&mut inner, pal, "tb_opts", "Options", true, |p, r, c| icons::draw_settings(p, r, c, pal.surface)) {
         action.options_clicked = true;
+    }
+
+    // Right-aligned search box when width permits
+    if inner.available_width() > 140.0 {
+        inner.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.add_space(16.0);
+            if !search_query.is_empty() {
+                let clr = egui::Button::new(egui::RichText::new("×").size(13.0).color(pal.muted))
+                    .fill(Color32::TRANSPARENT)
+                    .min_size(Vec2::new(22.0, shapes::CONTROL_HEIGHT))
+                    .rounding(shapes::R_SM);
+                if ui.add(clr).on_hover_text("Clear search").clicked() {
+                    search_query.clear();
+                }
+            }
+            let search_w = ui.available_width().clamp(120.0, 220.0);
+            ui.add(
+                egui::TextEdit::singleline(search_query)
+                    .hint_text("Search downloads...")
+                    .desired_width(search_w)
+                    .min_size(Vec2::new(search_w, 30.0))
+                    .margin(egui::Margin::symmetric(10.0, 5.0)),
+            );
+        });
     }
 
     action
