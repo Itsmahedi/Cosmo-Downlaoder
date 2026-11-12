@@ -736,7 +736,7 @@ dependencies = [
 
 [[package]]
 name = "cosmodownloader-cli"
-version = "1.13.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -751,7 +751,7 @@ dependencies = [
 
 [[package]]
 name = "cosmodownloader-native-host"
-version = "1.13.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3286,7 +3286,7 @@ dependencies = [
 
 [[package]]
 name = "rustget-app"
-version = "1.13.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3309,7 +3309,7 @@ dependencies = [
 
 [[package]]
 name = "rustget-core"
-version = "1.13.0"
+version = "1.0.0"
 dependencies = [
  "arboard",
  "chrono",

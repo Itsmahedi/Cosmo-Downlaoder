@@ -12,12 +12,13 @@
 const runtime = typeof browser !== "undefined" ? browser : (typeof chrome !== "undefined" ? chrome : null);
 
 const QUALITIES = [
-  { label: "1080p Full HD", badge: "60fps MP4", format: "1080p", audioOnly: false },
-  { label: "720p High Def", badge: "HD MP4", format: "720p", audioOnly: false },
-  { label: "480p Standard", badge: "SD MP4", format: "480p", audioOnly: false },
-  { label: "360p Low Bandwidth", badge: "MP4", format: "360p", audioOnly: false },
-  { label: "Audio Only", badge: "MP3 320k", format: "audio", audioOnly: true },
-  { label: "Best Available", badge: "Auto Engine", format: "best", audioOnly: false }
+  { label: "1080p", meta: "148 MB", format: "1080p", audioOnly: false },
+  { label: "720p", meta: "82 MB", format: "720p", audioOnly: false },
+  { label: "480p", meta: "41 MB", format: "480p", audioOnly: false },
+  { label: "360p", meta: "24 MB", format: "360p", audioOnly: false },
+  { divider: true },
+  { label: "Audio only", meta: "MP3, 9 MB", format: "audio", audioOnly: true },
+  { label: "Best available", meta: "Auto", format: "best", audioOnly: false }
 ];
 
 // Track injected UI elements per video element: Map<HTMLVideoElement, { container: HTMLElement, host: HTMLElement } >
@@ -142,7 +143,7 @@ function attachCosmoDownloadButton(videoEl) {
   if (!hostContainer) return;
 
   // Prevent duplicate injections inside same host container or on same video
-  if (hostContainer.querySelector(".cosmo-video-host")) {
+  if (hostContainer.querySelector(".cosmo-video-container")) {
     return;
   }
 
@@ -154,323 +155,146 @@ function attachCosmoDownloadButton(videoEl) {
     }
   } catch (_) {}
 
-  // Create Host Container with Shadow DOM for CSS isolation
-  const host = document.createElement("div");
-  host.className = "cosmo-video-host";
-  host.style.position = "absolute";
-  host.style.top = "12px";
-  host.style.right = "12px";
-  host.style.zIndex = "2147483647";
-  host.style.display = "block";
-  host.style.pointerEvents = "auto";
-  host.style.userSelect = "none";
+  // Create Container
+  const container = document.createElement("div");
+  container.className = "cosmo-video-container";
 
-  const shadow = host.attachShadow({ mode: "open" });
-
-  const styleEl = document.createElement("style");
-  styleEl.textContent = `
-    :host {
-      --bg:#f3f4f6; --surface:#ffffff; --raise:#eceef1; --line:rgba(20,24,30,.1);
-      --text:#1b1d21; --muted:#646b75; --accent:#44546a; --on-accent:#ffffff; --accent-soft:rgba(68,84,106,.12);
-      --danger:#d93025;
-      --s1:4px; --s2:8px; --s3:12px; --s4:16px;
-      --r-sm:6px; --r:10px;
-      --font:'Geist','Segoe UI',system-ui,-apple-system,Roboto,sans-serif;
-      --t-body:14px; --t-small:12px;
-      --ease:160ms ease-out;
-      display: block;
-      font-family: var(--font);
-    }
-    @media (prefers-color-scheme:dark){
-      :host{
-        --bg:#1a1c20; --surface:#22252a; --raise:#2b2f35; --line:rgba(255,255,255,.08);
-        --text:#e6e8eb; --muted:#9097a1; --accent:#8fa6c4; --on-accent:#0f1a2a; --accent-soft:rgba(143,166,196,.16);
-      }
-    }
-    *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    .dl {
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      gap: var(--s1);
-    }
-    .btn {
-      height: 28px;
-      padding: 0 var(--s2);
-      gap: 6px;
-      font-size: var(--t-small);
-      font-family: var(--font);
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: var(--r-sm);
-      color: var(--text);
-      font-weight: 500;
-      display: inline-flex;
-      align-items: center;
-      cursor: pointer;
-      box-shadow: 0 1px 3px rgba(0,0,0,.08);
-      transition: background var(--ease), border-color var(--ease);
-      white-space: nowrap;
-    }
-    .btn:hover {
-      background: var(--raise);
-    }
-    .btn:focus-visible {
-      outline: 2px solid var(--accent);
-      outline-offset: 2px;
-    }
-    .btn img {
-      width: 16px;
-      height: 16px;
-      border-radius: 3px;
-      flex-shrink: 0;
-    }
-    .btn svg.i {
-      width: 14px;
-      height: 14px;
-      flex: none;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 1.6;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      transition: transform var(--ease);
-    }
-    .dl.open .btn svg.i {
-      transform: rotate(180deg);
-    }
-    .menu {
-      position: absolute;
-      top: calc(100% + var(--s1));
-      right: 0;
-      width: 176px;
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: var(--r);
-      padding: var(--s1);
-      box-shadow: 0 8px 24px rgba(0,0,0,.18);
-      display: flex;
-      flex-direction: column;
-      gap: 1px;
-      z-index: 1000;
-    }
-    .menu[hidden] {
-      display: none;
-    }
-    .dl.flip-up .menu {
-      top: auto;
-      bottom: calc(100% + var(--s1));
-    }
-    .menu button {
-      display: flex;
-      justify-content: space-between;
-      gap: var(--s3);
-      width: 100%;
-      height: 30px;
-      align-items: center;
-      padding: 0 var(--s2);
-      font-size: 13px;
-      font-family: var(--font);
-      color: var(--text);
-      border: 0;
-      border-radius: var(--r-sm);
-      background: transparent;
-      text-align: left;
-      cursor: pointer;
-      transition: background var(--ease);
-    }
-    .menu button:hover, .menu button:focus-visible {
-      background: var(--accent-soft);
-      outline: none;
-    }
-    .menu button .size {
-      font-size: var(--t-small);
-      color: var(--muted);
-      font-variant-numeric: tabular-nums;
-    }
-    .menu hr {
-      border: 0;
-      border-top: 1px solid var(--line);
-      margin: var(--s1) var(--s2);
-    }
-    @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after {
-        transition-duration: 0ms !important;
-        animation-duration: 0ms !important;
-      }
-    }
-  `;
-  shadow.appendChild(styleEl);
-
-  const dlContainer = document.createElement("div");
-  dlContainer.className = "dl";
-
+  // Create Download Button (Flat 30px, quiet, hand-crafted)
   const btn = document.createElement("button");
-  btn.className = "btn";
+  btn.className = "cosmo-video-download-btn";
   btn.type = "button";
-  btn.setAttribute("aria-label", "Download");
-  btn.setAttribute("aria-haspopup", "listbox");
-  btn.setAttribute("aria-expanded", "false");
+  btn.setAttribute("aria-label", "Download Video");
 
-  const logoImg = document.createElement("img");
-  try {
-    logoImg.src = runtime.runtime.getURL("icons/icon-16.png");
-  } catch (_) {
-    logoImg.src = "";
-  }
-  logoImg.alt = "Cosmo";
+  const logoSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  logoSvg.setAttribute("class", "cosmo-logo-icon");
+  logoSvg.setAttribute("viewBox", "0 0 16 16");
+  logoSvg.innerHTML = '<rect x="1.5" y="3" width="13" height="3.5" rx="1.75" fill="currentColor"/><rect x="1.5" y="9.5" width="7" height="3.5" rx="1.75" fill="currentColor" opacity=".55"/>';
 
   const btnText = document.createElement("span");
+  btnText.className = "cosmo-btn-text";
   btnText.textContent = "Download";
 
-  const svgNS = "http://www.w3.org/2000/svg";
-  const chevSvg = document.createElementNS(svgNS, "svg");
-  chevSvg.setAttribute("class", "i");
-  chevSvg.setAttribute("viewBox", "0 0 24 24");
-  const chevPath = document.createElementNS(svgNS, "path");
-  chevPath.setAttribute("d", "M7 10l5 5 5-5");
-  chevSvg.appendChild(chevPath);
-
-  btn.appendChild(logoImg);
+  btn.appendChild(logoSvg);
   btn.appendChild(btnText);
-  btn.appendChild(chevSvg);
 
+  // Create Quality Dropdown Menu (Clean, quiet list, no badges/footers)
   const menu = document.createElement("div");
-  menu.className = "menu";
+  menu.className = "cosmo-quality-menu";
   menu.setAttribute("role", "listbox");
-  menu.setAttribute("aria-label", "Select quality");
-  menu.hidden = true;
+  menu.setAttribute("aria-label", "Quality");
 
-  // Reference items: 1080p, 720p, 480p, 360p, divider, Audio only
-  const MENU_ITEMS = [
-    { label: "1080p", size: "148 MB", format: "1080p" },
-    { label: "720p", size: "82 MB", format: "720p" },
-    { label: "480p", size: "41 MB", format: "480p" },
-    { label: "360p", size: "24 MB", format: "360p" },
-    null,
-    { label: "Audio only", size: "9 MB", format: "audio" }
-  ];
-
-  MENU_ITEMS.forEach((item) => {
-    if (!item) {
-      menu.appendChild(document.createElement("hr"));
+  QUALITIES.forEach((q) => {
+    if (q.divider) {
+      const hr = document.createElement("hr");
+      menu.appendChild(hr);
       return;
     }
 
-    const rowBtn = document.createElement("button");
-    rowBtn.type = "button";
-    rowBtn.setAttribute("role", "option");
-    rowBtn.dataset.format = item.format;
+    const item = document.createElement("button");
+    item.className = "cosmo-quality-item" + (q.audioOnly ? " audio" : "");
+    item.type = "button";
+    item.setAttribute("role", "option");
+    item.setAttribute("data-format", q.format);
 
-    const labelSpan = document.createElement("span");
-    labelSpan.textContent = item.label;
+    const titleSpan = document.createElement("span");
+    titleSpan.className = "quality-name";
+    titleSpan.textContent = q.label;
 
-    const sizeSpan = document.createElement("span");
-    sizeSpan.className = "size";
-    sizeSpan.textContent = item.size;
+    const metaSpan = document.createElement("span");
+    metaSpan.className = "meta";
+    metaSpan.textContent = q.meta;
 
-    rowBtn.appendChild(labelSpan);
-    rowBtn.appendChild(sizeSpan);
-    menu.appendChild(rowBtn);
+    item.appendChild(titleSpan);
+    item.appendChild(metaSpan);
+    menu.appendChild(item);
   });
 
-  const CAPTURE_STOP_EVENTS = ["pointerdown", "mousedown", "mouseup", "pointerup", "click"];
-  CAPTURE_STOP_EVENTS.forEach((evtName) => {
-    host.addEventListener(evtName, (e) => e.stopPropagation());
-    btn.addEventListener(evtName, (e) => e.stopPropagation(), { capture: true });
+  // Prevent parent player events from interfering or closing the menu
+  ["pointerdown", "mousedown", "mouseup", "click"].forEach((evtName) => {
+    container.addEventListener(evtName, (e) => {
+      e.stopPropagation();
+    });
   });
 
-  const openMenu = () => {
-    menu.hidden = false;
-    dlContainer.classList.add("open");
-    btn.setAttribute("aria-expanded", "true");
-
-    try {
-      const btnRect = btn.getBoundingClientRect();
-      const spaceBelow = window.innerHeight - btnRect.bottom;
-      if (spaceBelow < 220 && btnRect.top > spaceBelow) {
-        dlContainer.classList.add("flip-up");
-      } else {
-        dlContainer.classList.remove("flip-up");
-      }
-    } catch (_) {}
-  };
-
-  const closeMenu = () => {
-    menu.hidden = true;
-    dlContainer.classList.remove("open", "flip-up");
-    btn.setAttribute("aria-expanded", "false");
-  };
-
-  const toggleMenu = () => {
-    if (menu.hidden) {
-      openMenu();
-    } else {
-      closeMenu();
-    }
-  };
-
+  // Toggle dropdown on button click
   btn.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    toggleMenu();
-  }, { capture: true });
-
-  menu.querySelectorAll("button").forEach((row) => {
-    CAPTURE_STOP_EVENTS.forEach((evtName) => {
-      row.addEventListener(evtName, (e) => e.stopPropagation(), { capture: true });
-    });
-
-    row.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const format = row.dataset.format;
-      triggerDownload(videoEl, format);
-
-      closeMenu();
-
-      btnText.textContent = "Sent to Cosmo";
-      setTimeout(() => {
-        btnText.textContent = "Download";
-      }, 1600);
-    }, { capture: true });
+    e.stopImmediatePropagation();
+    container.classList.toggle("open");
   });
 
+  // Handle Quality Selection
+  menu.querySelectorAll(".cosmo-quality-item").forEach((item) => {
+    item.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      const format = item.getAttribute("data-format");
+      triggerDownload(videoEl, format);
+
+      // Feedback animation
+      const textEl = btn.querySelector(".cosmo-btn-text");
+      const prevText = textEl ? textEl.textContent : "Download";
+      if (textEl) textEl.textContent = "Sent";
+      btn.classList.add("sent");
+
+      container.classList.remove("open");
+
+      setTimeout(() => {
+        if (textEl) textEl.textContent = prevText;
+        btn.classList.remove("sent");
+      }, 2000);
+    });
+  });
+
+  // Keep button solidly visible during user interaction
+  const showBtn = (e) => {
+    if (e) e.stopPropagation();
+    btn.style.opacity = "1";
+    btn.style.pointerEvents = "auto";
+  };
+
+  const handleMouseLeave = () => {
+    if (container.classList.contains("open")) return;
+    btn.style.opacity = "0.92";
+  };
+
+  hostContainer.addEventListener("mouseenter", showBtn);
+  hostContainer.addEventListener("mousemove", showBtn);
+  hostContainer.addEventListener("mouseleave", handleMouseLeave);
+  container.addEventListener("mouseenter", showBtn);
+  container.addEventListener("mousemove", showBtn);
+  container.addEventListener("mouseleave", handleMouseLeave);
+  btn.addEventListener("mouseenter", showBtn);
+  btn.addEventListener("mousemove", showBtn);
+  menu.addEventListener("mouseenter", showBtn);
+  menu.addEventListener("mousemove", showBtn);
+
+  // Close menu only when clicking outside
   const onPointerDownOutside = (e) => {
-    if (menu.hidden) return;
+    if (!container.classList.contains("open")) return;
     const path = typeof e.composedPath === "function" ? e.composedPath() : [];
-    if (!path.includes(host) && !host.contains(e.target)) {
-      closeMenu();
+    if (!container.contains(e.target) && !path.includes(container)) {
+      container.classList.remove("open");
     }
   };
   document.addEventListener("pointerdown", onPointerDownOutside);
 
-  const onKeyDown = (e) => {
-    if (e.key === "Escape" && !menu.hidden) {
-      closeMenu();
-      btn.focus();
-    }
-  };
-  document.addEventListener("keydown", onKeyDown);
-
-  dlContainer.appendChild(btn);
-  dlContainer.appendChild(menu);
-  shadow.appendChild(dlContainer);
-  hostContainer.appendChild(host);
+  container.appendChild(btn);
+  container.appendChild(menu);
+  hostContainer.appendChild(container);
 
   activeAttachedButtons.set(videoEl, {
-    container: host,
+    container,
     hostContainer,
     cleanup: () => {
       document.removeEventListener("pointerdown", onPointerDownOutside);
-      document.removeEventListener("keydown", onKeyDown);
-      host.remove();
+      hostContainer.removeEventListener("mouseenter", showBtn);
+      hostContainer.removeEventListener("mousemove", showBtn);
+      hostContainer.removeEventListener("mouseleave", handleMouseLeave);
+      container.remove();
     }
   });
 }
