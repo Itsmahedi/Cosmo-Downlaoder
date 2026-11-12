@@ -12,30 +12,30 @@ Use this fast-lookup table to pinpoint the exact file for any feature or task:
 
 | If You Need To Touch... | Target File / Directory | Key Structs / Functions / Constants |
 | :--- | :--- | :--- |
-| **Desktop GUI / Main Window** | [`crates/app/src/main.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/app/src/main.rs) | `CosmoDownloaderApp`, `eframe::App`, `FilterTab`, `render_download_card` |
-| **IDM-style "Download File Info" Popup** | [`crates/app/src/main.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/app/src/main.rs) | `show_download_popup_window`, `make_popup_topmost`, `--popup-file` |
-| **System Tray & Autostart** | [`crates/app/src/main.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/app/src/main.rs) | `build_system_tray`, `get_autostart_info`, `set_autostart_enabled` |
-| **Explorer "Open File / Open Folder"** | [`crates/app/src/main.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/app/src/main.rs) | `shell_open_file`, `shell_open_folder_and_select`, `ShellExecuteExW` |
-| **Multi-segment Chunk Downloader** | [`crates/core/src/downloader.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/core/src/downloader.rs) | `Downloader`, `DownloadOptions`, `DownloadProgress`, `download_chunk` |
-| **Byte Range & Segment Division** | [`crates/core/src/segment.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/core/src/segment.rs) | `Segment`, `calculate_segments` |
-| **URL Probing & Filename Extraction** | [`crates/core/src/probe.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/core/src/probe.rs) | `probe_url`, `FileInfo`, `extract_filename`, `sanitize_filename` |
-| **Download Queue & Concurrency** | [`crates/core/src/queue.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/core/src/queue.rs) | `QueueManager`, `QueueEvent`, `start_queue_worker` |
-| **SQLite DB & Task Persistence** | [`crates/core/src/db.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/core/src/db.rs) | `Database`, `DownloadRecord`, migrations |
-| **Local Bridge Server (IPC HTTP: 42424)** | [`crates/core/src/server.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/core/src/server.rs) | `BridgeServer`, `ExtensionDownloadRequest`, `spawn_on_demand_popup` |
-| **YouTube & yt-dlp Video Extraction** | [`crates/core/src/youtube.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/core/src/youtube.rs) | `probe_youtube`, `download_youtube`, `is_youtube_url` |
-| **Speed Tracking & Smoothing** | [`crates/core/src/speed.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/core/src/speed.rs) | `SpeedTracker` |
-| **Bandwidth Rate Limiting** | [`crates/core/src/rate_limiter.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/core/src/rate_limiter.rs) | `TokenBucketRateLimiter` |
-| **Clipboard Auto-detection** | [`crates/core/src/clipboard.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/core/src/clipboard.rs) | `ClipboardMonitor` |
-| **File Categories (Video, Music, etc.)** | [`crates/core/src/category.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/core/src/category.rs) | `Category`, `from_extension`, `default_dir` |
-| **SHA-256 Checksums** | [`crates/core/src/checksum.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/core/src/checksum.rs) | `compute_sha256`, `verify_sha256` |
-| **Core Exports & Module Tree** | [`crates/core/src/lib.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/core/src/lib.rs) | Public crate re-exports |
-| **Browser Native Messaging Host** | [`crates/native-host/src/main.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/native-host/src/main.rs) | `ExtensionMessage`, `HostResponse`, `--register`, `--unregister` |
-| **Command Line Interface (CLI)** | [`crates/cli/src/main.rs`](file:///home/tokit/Projects/cosmo_downloader/crates/cli/src/main.rs) | `Cli`, `Commands` (`Download`, `List`, `Pause`, `Probe`, etc.) |
-| **Chrome / Edge Extension (V3)** | [`browser-extensions/Chrome-Edge-Brave-Opera/`](file:///home/tokit/Projects/cosmo_downloader/browser-extensions/Chrome-Edge-Brave-Opera/) | `manifest.json`, `background.js`, `content.js`, `popup.js` |
-| **Firefox Extension (V2)** | [`browser-extensions/Mozilla-Firefox/`](file:///home/tokit/Projects/cosmo_downloader/browser-extensions/Mozilla-Firefox/) | `manifest.json`, `background.js`, `content.js`, `popup.js` |
-| **Inno Setup Windows Installer** | [`installer/cosmodownloader.iss`](file:///home/tokit/Projects/cosmo_downloader/installer/cosmodownloader.iss) | Inno Setup directives, registry entries, shortcuts |
-| **Release Build Automation** | [`installer/build-release.ps1`](file:///home/tokit/Projects/cosmo_downloader/installer/build-release.ps1) | Cargo release build + packaging + Inno compile script |
-| **Build & Deploy Utility Scripts** | [`scripts/`](file:///home/tokit/Projects/cosmo_downloader/scripts/) | `deploy_binaries.ps1`, `build_xpi.ps1`, `update_manifests.ps1` |
+| **Desktop GUI / Main Window** | [`crates/app/src/main.rs`](../crates/app/src/main.rs) | `CosmoDownloaderApp`, `eframe::App`, `FilterTab`, `render_download_card` |
+| **IDM-style "Download File Info" Popup** | [`crates/app/src/main.rs`](../crates/app/src/main.rs) | `show_download_popup_window`, `make_popup_topmost`, `--popup-file` |
+| **System Tray & Autostart** | [`crates/app/src/main.rs`](../crates/app/src/main.rs) | `build_system_tray`, `get_autostart_info`, `set_autostart_enabled` |
+| **Explorer "Open File / Open Folder"** | [`crates/app/src/main.rs`](../crates/app/src/main.rs) | `shell_open_file`, `shell_open_folder_and_select`, `ShellExecuteExW` |
+| **Multi-segment Chunk Downloader** | [`crates/core/src/downloader.rs`](../crates/core/src/downloader.rs) | `Downloader`, `DownloadOptions`, `DownloadProgress`, `download_chunk` |
+| **Byte Range & Segment Division** | [`crates/core/src/segment.rs`](../crates/core/src/segment.rs) | `Segment`, `calculate_segments` |
+| **URL Probing & Filename Extraction** | [`crates/core/src/probe.rs`](../crates/core/src/probe.rs) | `probe_url`, `FileInfo`, `extract_filename`, `sanitize_filename` |
+| **Download Queue & Concurrency** | [`crates/core/src/queue.rs`](../crates/core/src/queue.rs) | `QueueManager`, `QueueEvent`, `start_queue_worker` |
+| **SQLite DB & Task Persistence** | [`crates/core/src/db.rs`](../crates/core/src/db.rs) | `Database`, `DownloadRecord`, migrations |
+| **Local Bridge Server (IPC HTTP: 42424)** | [`crates/core/src/server.rs`](../crates/core/src/server.rs) | `BridgeServer`, `ExtensionDownloadRequest`, `spawn_on_demand_popup` |
+| **YouTube & yt-dlp Video Extraction** | [`crates/core/src/youtube.rs`](../crates/core/src/youtube.rs) | `probe_youtube`, `download_youtube`, `is_youtube_url` |
+| **Speed Tracking & Smoothing** | [`crates/core/src/speed.rs`](../crates/core/src/speed.rs) | `SpeedTracker` |
+| **Bandwidth Rate Limiting** | [`crates/core/src/rate_limiter.rs`](../crates/core/src/rate_limiter.rs) | `TokenBucketRateLimiter` |
+| **Clipboard Auto-detection** | [`crates/core/src/clipboard.rs`](../crates/core/src/clipboard.rs) | `ClipboardMonitor` |
+| **File Categories (Video, Music, etc.)** | [`crates/core/src/category.rs`](../crates/core/src/category.rs) | `Category`, `from_extension`, `default_dir` |
+| **SHA-256 Checksums** | [`crates/core/src/checksum.rs`](../crates/core/src/checksum.rs) | `compute_sha256`, `verify_sha256` |
+| **Core Exports & Module Tree** | [`crates/core/src/lib.rs`](../crates/core/src/lib.rs) | Public crate re-exports |
+| **Browser Native Messaging Host** | [`crates/native-host/src/main.rs`](../crates/native-host/src/main.rs) | `ExtensionMessage`, `HostResponse`, `--register`, `--unregister` |
+| **Command Line Interface (CLI)** | [`crates/cli/src/main.rs`](../crates/cli/src/main.rs) | `Cli`, `Commands` (`Download`, `List`, `Pause`, `Probe`, etc.) |
+| **Chrome / Edge Extension (V3)** | [`browser-extensions/Chrome-Edge-Brave-Opera/`](../browser-extensions/Chrome-Edge-Brave-Opera/) | `manifest.json`, `background.js`, `content.js`, `popup.js` |
+| **Firefox Extension (V2)** | [`browser-extensions/Mozilla-Firefox/`](../browser-extensions/Mozilla-Firefox/) | `manifest.json`, `background.js`, `content.js`, `popup.js` |
+| **Inno Setup Windows Installer** | [`installer/cosmodownloader.iss`](../installer/cosmodownloader.iss) | Inno Setup directives, registry entries, shortcuts |
+| **Release Build Automation** | [`installer/build-release.ps1`](../installer/build-release.ps1) | Cargo release build + packaging + Inno compile script |
+| **Build & Deploy Utility Scripts** | [`scripts/`](../scripts/) | `deploy_binaries.ps1`, `build_xpi.ps1`, `update_manifests.ps1` |
 
 ---
 

@@ -18,10 +18,6 @@ function getExecutablePath() {
   if (process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH && fs.existsSync(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH)) {
     return process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
   }
-  const defaultCached = "/home/tokit/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome";
-  if (fs.existsSync(defaultCached)) {
-    return defaultCached;
-  }
   return undefined;
 }
 

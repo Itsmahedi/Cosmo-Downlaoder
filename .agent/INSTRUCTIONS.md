@@ -15,7 +15,7 @@ These instructions govern any AI coding agent operating in the `cosmo_downloader
 - Recursive searches waste hundreds of thousands of tokens, slow down tool calls, hit output limits, and degrade context accuracy.
 
 ### What To Do Instead:
-1. **Look at [`.agent/MINDMAP.md`](file:///home/tokit/Projects/cosmo_downloader/.agent/MINDMAP.md) first!**
+1. **Look at [`.agent/MINDMAP.md`](MINDMAP.md) first!**
    - The file lookup matrix tells you the exact crate, file name, and function name for almost every task.
 2. **Targeted Reading:** Use `read_file` with explicit start and end line numbers on the specific file you identified from the mind map.
 3. **Focused Symbol Lookup:** If you need to find an unmapped symbol, limit `grep` to a single directory (e.g., `grep -rn "pattern" crates/core/src/`).
@@ -54,20 +54,19 @@ When writing or modifying code in this repository, keep in mind:
 4. **Local Bridge Port:**
    - The internal HTTP bridge operates on `127.0.0.1:42424`. If modifying this port, it must be changed consistently across `crates/core/src/server.rs` and `crates/native-host/src/main.rs`.
 
-5. GitHub Releases and Uploads
-Development happens in the private working repo. NEVER create releases, tags, or upload assets to the private working repo.
-ALL releases and uploads go ONLY to the public repo: Itsmahedi/Cosmo-Downloader with appropriate comprehensive but simple also good looking release notes
-Always pass --repo Itsmahedi/Cosmo-Downloader explicitly to every gh release command. gh defaults to the repo of the current directory, which is the private one.
-Before running any upload, verify the target repo is the public one.
-Upload the updated Windows .exe and the updated browser extension (.zip) with each release.
-Keep the public repo focused on distributing the executable and release files only. Do not push source code or private project files to it.
+5. GitHub Repository, Releases and Uploads
+The sole official repository for Cosmo Downloader is Itsmahedi/Cosmo-Downloader.
+All source code, commits, releases, and distribution assets belong exclusively to Itsmahedi/Cosmo-Downloader.
+Always pass --repo Itsmahedi/Cosmo-Downloader explicitly to every gh command.
+Upload the updated Windows .exe and the updated browser extension packages (.zip / .xpi) with each release.
+Release notes should be comprehensive, clean, and professional.
 Example:
 
 gh release create vX.Y.Z \
   --repo Itsmahedi/Cosmo-Downloader \
   --title "Cosmo Downloader vX.Y.Z" \
   --notes-file RELEASE_NOTES.md \
-  path/to/CosmoDownloader.exe path/to/extension.zip
+  path/to/CosmoDownloader-Setup-vX.Y.exe path/to/CosmoDownloader.exe path/to/extension.zip path/to/extension.xpi
 
 6. Version Management
 Update the version with every release.

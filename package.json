@@ -13,16 +13,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tokitauhid/cosmo_downloader.git"
+    "url": "git+https://github.com/Itsmahedi/Cosmo-Downloader.git"
   },
   "keywords": [],
-  "author": "",
+  "author": "Mahedi",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/tokitauhid/cosmo_downloader/issues"
+    "url": "https://github.com/Itsmahedi/Cosmo-Downloader/issues"
   },
-  "homepage": "https://github.com/tokitauhid/cosmo_downloader#readme",
+  "homepage": "https://github.com/Itsmahedi/Cosmo-Downloader#readme",
   "devDependencies": {
     "playwright": "^1.65.0",
     "stylelint": "^18.0.0",
