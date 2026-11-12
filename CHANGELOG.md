@@ -5,6 +5,12 @@ All notable changes to Cosmo Downloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-11-13
+
+### Fixed
+- **Browser Extension Video Download Button Icon:** Replaced the legacy stacked-bars icon on the video download button with a standard downward arrow into tray SVG icon with `stroke="currentColor"` matching the button text color in both normal and sent states.
+- **Repository Configuration:** Standardized all project URLs, bug trackers, and release targets exclusively to `Itsmahedi/Cosmo-Downloader`.
+
 ## [1.2.0] - 2026-11-12
 
 ### Security
