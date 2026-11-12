@@ -401,7 +401,7 @@ async fn run_direct_download(args: DirectDownloadArgs) -> Result<()> {
     };
 
     println!("============================================================");
-    println!(" Cosmo Downloader v1.0 - High Performance Download Engine");
+    println!(" Cosmo Downloader v{} - High Performance Download Engine", env!("CARGO_PKG_VERSION"));
     println!(" URL: {}", args.url);
     println!(" Segments: {}", args.connections.clamp(1, 32));
     if let Some(spd) = args.speed_limit {

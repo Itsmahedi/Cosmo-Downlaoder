@@ -8,7 +8,7 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${ROOT_DIR}"
 
 APP_NAME="CosmoDownloader"
-VERSION="1.12.0"
+VERSION="${1:-$(node -e 'console.log(require("./package.json").version)' 2>/dev/null || grep -m1 '^version = "' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')}"
 ARCH="${ARCH:-x86_64}"
 APPDIR="${ROOT_DIR}/build/AppDir"
 DIST_DIR="${ROOT_DIR}/dist"

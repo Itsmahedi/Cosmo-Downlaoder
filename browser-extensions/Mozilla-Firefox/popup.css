@@ -1,4 +1,4 @@
-/* Cosmo Downloader v1.12 — Popup Styles */
+/* Cosmo Downloader — Popup Styles */
 
 @font-face {
   font-family: 'Geist';
@@ -352,6 +352,12 @@ body {
 }
 
 /* URL feedback */
+.ver-mismatch {
+  margin: 0 var(--s4) var(--s2);
+  font-size: var(--t-small);
+  color: var(--muted);
+}
+
 .url-feedback {
   font-size: var(--t-small);
   min-height: 18px;

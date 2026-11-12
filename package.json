@@ -1,6 +1,6 @@
 {
   "name": "cosmo_downloader",
-  "version": "1.0.0",
+  "version": "1.14.0",
   "description": "A blazing-fast, modern download manager for Windows with seamless browser integration.",
   "main": "index.js",
   "directories": {
@@ -9,20 +9,21 @@
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "lint:css": "stylelint browser-extensions/**/*.css",
-    "sync-extensions": "node scripts/sync-extensions.mjs"
+    "sync-extensions": "node scripts/sync-extensions.mjs",
+    "set-version": "node scripts/set-version.mjs"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tokitauhid/cosmo_downloader.git"
+    "url": "git+https://github.com/Itsmahedi/Cosmo-Downlaoder.git"
   },
   "keywords": [],
-  "author": "",
+  "author": "Mahedi",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/tokitauhid/cosmo_downloader/issues"
+    "url": "https://github.com/Itsmahedi/Cosmo-Downlaoder/issues"
   },
-  "homepage": "https://github.com/tokitauhid/cosmo_downloader#readme",
+  "homepage": "https://github.com/Itsmahedi/Cosmo-Downlaoder#readme",
   "devDependencies": {
     "playwright": "^1.65.0",
     "stylelint": "^18.0.0",

@@ -1,5 +1,5 @@
 /**
- * Cosmo Downloader v1.11 — Content Script (Chrome, Edge, Brave, Opera, Firefox)
+ * Cosmo Downloader — Content Script (Chrome, Edge, Brave, Opera, Firefox)
  * 
  * Injects a compact, floating cosmic download button on qualified videos
  * with an interactive IDM-style quality/format selector menu.

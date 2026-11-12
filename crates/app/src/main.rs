@@ -53,16 +53,25 @@ pub mod theme {
         pub danger: Color32,
     }
 
+    const fn rgba_const(r: u8, g: u8, b: u8, a: u8) -> Color32 {
+        Color32::from_rgba_premultiplied(
+            ((r as u16 * a as u16) / 255) as u8,
+            ((g as u16 * a as u16) / 255) as u8,
+            ((b as u16 * a as u16) / 255) as u8,
+            a,
+        )
+    }
+
     pub const LIGHT: Palette = Palette {
         bg:          Color32::from_rgb(0xf3, 0xf4, 0xf6),
         surface:     Color32::from_rgb(0xff, 0xff, 0xff),
         raise:       Color32::from_rgb(0xec, 0xee, 0xf1),
-        line:        Color32::from_rgba_premultiplied(20, 24, 30, 26),
+        line:        rgba_const(20, 24, 30, 26),
         text:        Color32::from_rgb(0x1b, 0x1d, 0x21),
         muted:       Color32::from_rgb(0x64, 0x6b, 0x75),
         accent:      Color32::from_rgb(0x44, 0x54, 0x6a),
         on_accent:   Color32::from_rgb(0xff, 0xff, 0xff),
-        accent_soft: Color32::from_rgba_premultiplied(68, 84, 106, 31),
+        accent_soft: rgba_const(68, 84, 106, 31),
         danger:      Color32::from_rgb(0xd9, 0x30, 0x25),
     };
 
@@ -70,14 +79,34 @@ pub mod theme {
         bg:          Color32::from_rgb(0x1a, 0x1c, 0x20),
         surface:     Color32::from_rgb(0x22, 0x25, 0x2a),
         raise:       Color32::from_rgb(0x2b, 0x2f, 0x35),
-        line:        Color32::from_rgba_premultiplied(255, 255, 255, 20),
+        line:        rgba_const(255, 255, 255, 20),
         text:        Color32::from_rgb(0xe6, 0xe8, 0xeb),
         muted:       Color32::from_rgb(0x90, 0x97, 0xa1),
         accent:      Color32::from_rgb(0x8f, 0xa6, 0xc4),
         on_accent:   Color32::from_rgb(0x0f, 0x1a, 0x2a),
-        accent_soft: Color32::from_rgba_premultiplied(143, 166, 196, 41),
+        accent_soft: rgba_const(143, 166, 196, 41),
         danger:      Color32::from_rgb(0xd9, 0x30, 0x25),
     };
+
+    pub const MAIN_WIDTH: f32 = 900.0;
+    pub const MAIN_HEIGHT: f32 = 600.0;
+
+    pub fn brighten(c: Color32, factor: f32) -> Color32 {
+        let [r, g, b, a] = c.to_array();
+        Color32::from_rgba_unmultiplied(
+            ((r as f32 * factor).clamp(0.0, 255.0)) as u8,
+            ((g as f32 * factor).clamp(0.0, 255.0)) as u8,
+            ((b as f32 * factor).clamp(0.0, 255.0)) as u8,
+            a,
+        )
+    }
+
+    pub fn hover_raise(mode: ThemeMode) -> Color32 {
+        match mode {
+            ThemeMode::Light => Color32::from_rgb(0xe3, 0xe6, 0xeb),
+            ThemeMode::Dark => Color32::from_rgb(0x32, 0x37, 0x3f),
+        }
+    }
 
     // Compatibility aliases routing to DARK theme by default
     pub const BG_APP: Color32 = DARK.bg;
@@ -212,6 +241,55 @@ mod icons {
         ];
         painter.add(egui::epaint::PathShape::convex_polygon(pts, color, Stroke::NONE));
     }
+
+    pub fn draw_down(painter: &Painter, rect: Rect, color: Color32) {
+        let c = rect.center();
+        let stroke = Stroke::new(1.8_f32, color);
+        let top_y = rect.top() + rect.height() * 0.16;
+        let tip_y = rect.bottom() - rect.height() * 0.28;
+        let head_w = rect.width() * 0.24;
+        painter.line_segment([pos2(c.x, top_y), pos2(c.x, tip_y)], stroke);
+        painter.line_segment([pos2(c.x - head_w, tip_y - head_w), pos2(c.x, tip_y)], stroke);
+        painter.line_segment([pos2(c.x + head_w, tip_y - head_w), pos2(c.x, tip_y)], stroke);
+        let tray_y = rect.bottom() - rect.height() * 0.14;
+        painter.line_segment(
+            [pos2(c.x - rect.width() * 0.30, tray_y), pos2(c.x + rect.width() * 0.30, tray_y)],
+            stroke,
+        );
+    }
+
+    pub fn draw_win_min(painter: &Painter, center: eframe::egui::Pos2, color: Color32) {
+        painter.line_segment(
+            [pos2(center.x - 5.0, center.y), pos2(center.x + 5.0, center.y)],
+            Stroke::new(1.2_f32, color),
+        );
+    }
+
+    pub fn draw_win_max(painter: &Painter, center: eframe::egui::Pos2, color: Color32, maximized: bool) {
+        let stroke = Stroke::new(1.2_f32, color);
+        if maximized {
+            let back = Rect::from_center_size(pos2(center.x + 1.5, center.y - 1.5), eframe::egui::vec2(7.0, 7.0));
+            painter.line_segment([pos2(back.left() + 1.5, back.top()), back.right_top()], stroke);
+            painter.line_segment([back.right_top(), pos2(back.right(), back.bottom() - 1.5)], stroke);
+            let front = Rect::from_center_size(pos2(center.x - 1.0, center.y + 1.0), eframe::egui::vec2(7.0, 7.0));
+            painter.rect_stroke(front, Rounding::ZERO, stroke);
+        } else {
+            let box_rect = Rect::from_center_size(center, eframe::egui::vec2(9.0, 9.0));
+            painter.rect_stroke(box_rect, Rounding::ZERO, stroke);
+        }
+    }
+
+    pub fn draw_win_close(painter: &Painter, center: eframe::egui::Pos2, color: Color32) {
+        let stroke = Stroke::new(1.3_f32, color);
+        painter.line_segment(
+            [pos2(center.x - 4.5, center.y - 4.5), pos2(center.x + 4.5, center.y + 4.5)],
+            stroke,
+        );
+        painter.line_segment(
+            [pos2(center.x + 4.5, center.y - 4.5), pos2(center.x - 4.5, center.y + 4.5)],
+            stroke,
+        );
+    }
 }
 
 fn draw_category_icon(painter: &Painter, rect: Rect, category: &str, color: Color32) {
@@ -236,10 +314,13 @@ fn sidebar_row<T: PartialEq + Clone>(
     draw_icon: impl FnOnce(&Painter, Rect, Color32),
 ) {
     let is_selected = *current == val;
-    let row_height = 32.0;
+    let row_height = 28.0;
     let (rect, response) = ui.allocate_exact_size(Vec2::new(ui.available_width(), row_height), egui::Sense::click());
     if response.clicked() {
         *current = val;
+    }
+    if response.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
     let bg = if is_selected {
         palette.accent_soft
@@ -250,26 +331,235 @@ fn sidebar_row<T: PartialEq + Clone>(
     };
     ui.painter().rect_filled(rect, Rounding::same(6.0), bg);
 
+    let fg_color = if is_selected {
+        palette.accent
+    } else if response.hovered() {
+        palette.text
+    } else {
+        palette.muted
+    };
+
     // Draw icon at left
-    let icon_rect = Rect::from_center_size(pos2(rect.left() + 16.0, rect.center().y), Vec2::splat(14.0));
-    let icon_color = if is_selected { palette.accent } else { palette.muted };
-    draw_icon(ui.painter(), icon_rect, icon_color);
+    let icon_rect = Rect::from_center_size(pos2(rect.left() + 16.0, rect.center().y), Vec2::splat(13.0));
+    draw_icon(ui.painter(), icon_rect, fg_color);
 
     // Text label
-    let text_color = if is_selected { palette.accent } else { palette.muted };
-    let font_id = if is_selected {
-        egui::FontId::proportional(13.0)
-    } else {
-        egui::FontId::proportional(13.0)
-    };
-    let text_pos = pos2(rect.left() + 32.0, rect.center().y - 7.0);
-    ui.painter().text(text_pos, egui::Align2::LEFT_TOP, name, font_id, text_color);
+    let text_galley = ui.painter().layout_no_wrap(
+        name.to_string(),
+        egui::FontId::proportional(13.0),
+        fg_color,
+    );
+    ui.painter().galley(
+        pos2(rect.left() + 30.0, rect.center().y - text_galley.size().y / 2.0),
+        text_galley,
+        fg_color,
+    );
 
-    // Count at right (tabular nums)
-    let badge_str = count.to_string();
-    let badge_text_color = if is_selected { palette.accent } else { palette.muted };
-    let galley = ui.painter().layout_no_wrap(badge_str, egui::FontId::proportional(12.0), badge_text_color);
-    ui.painter().galley(pos2(rect.right() - galley.size().x - 12.0, rect.center().y - galley.size().y / 2.0), galley, badge_text_color);
+    // Count at right
+    let badge_color = if is_selected {
+        palette.accent
+    } else if response.hovered() {
+        palette.text
+    } else {
+        palette.muted
+    };
+    let galley = ui.painter().layout_no_wrap(count.to_string(), egui::FontId::proportional(12.0), badge_color);
+    ui.painter().galley(pos2(rect.right() - galley.size().x - 10.0, rect.center().y - galley.size().y / 2.0), galley, badge_color);
+}
+
+fn primary_button(
+    ui: &mut egui::Ui,
+    palette: &theme::Palette,
+    label: &str,
+    min_size: Vec2,
+    enabled: bool,
+) -> egui::Response {
+    let font = egui::FontId::proportional(12.5);
+    let text_galley = ui.painter().layout_no_wrap(label.to_string(), font.clone(), palette.on_accent);
+    let desired_w = (text_galley.size().x + 28.0).max(min_size.x);
+    let desired_h = min_size.y.max(28.0);
+    let sense = if enabled { egui::Sense::click() } else { egui::Sense::hover() };
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(desired_w, desired_h), sense);
+
+    let (fill, fg) = if !enabled {
+        (palette.accent.gamma_multiply(0.45), palette.on_accent.gamma_multiply(0.45))
+    } else if response.hovered() || response.is_pointer_button_down_on() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        (theme::brighten(palette.accent, 1.08), palette.on_accent)
+    } else {
+        (palette.accent, palette.on_accent)
+    };
+
+    ui.painter().rect_filled(rect, Rounding::same(6.0), fill);
+    let galley = ui.painter().layout_no_wrap(label.to_string(), font, fg);
+    ui.painter().galley(
+        pos2(rect.center().x - galley.size().x / 2.0, rect.center().y - galley.size().y / 2.0),
+        galley,
+        fg,
+    );
+    response
+}
+
+fn secondary_button(
+    ui: &mut egui::Ui,
+    mode: theme::ThemeMode,
+    palette: &theme::Palette,
+    label: &str,
+    min_size: Vec2,
+    enabled: bool,
+) -> egui::Response {
+    let font = egui::FontId::proportional(12.0);
+    let measure = ui.painter().layout_no_wrap(label.to_string(), font.clone(), palette.text);
+    let desired_w = (measure.size().x + 22.0).max(min_size.x);
+    let desired_h = min_size.y.max(28.0);
+    let sense = if enabled { egui::Sense::click() } else { egui::Sense::hover() };
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(desired_w, desired_h), sense);
+
+    let (fill, fg, stroke_col) = if !enabled {
+        (
+            palette.raise.gamma_multiply(0.45),
+            palette.text.gamma_multiply(0.45),
+            palette.line.gamma_multiply(0.45),
+        )
+    } else if response.hovered() || response.is_pointer_button_down_on() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        (theme::hover_raise(mode), palette.text, palette.line)
+    } else {
+        (palette.raise, palette.text, palette.line)
+    };
+
+    ui.painter().rect(rect, Rounding::same(6.0), fill, Stroke::new(1.0_f32, stroke_col));
+    let galley = ui.painter().layout_no_wrap(label.to_string(), font, fg);
+    ui.painter().galley(
+        pos2(rect.center().x - galley.size().x / 2.0, rect.center().y - galley.size().y / 2.0),
+        galley,
+        fg,
+    );
+    response
+}
+
+fn restore_main_viewport(ctx: &egui::Context, visible: bool) {
+    ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
+    ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(false));
+    ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(theme::MAIN_WIDTH, theme::MAIN_HEIGHT)));
+    ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
+    if !visible {
+        hide_main_window();
+    }
+    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(visible));
+    if visible {
+        show_main_window();
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Critical));
+    }
+}
+
+fn open_popup_viewport(ctx: &egui::Context, size: Vec2, title: &str) {
+    ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
+    ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
+    ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.to_string()));
+    ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop));
+    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+    ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Critical));
+    #[cfg(windows)]
+    make_popup_topmost();
+}
+
+const GITHUB_RELEASES_LATEST_API: &str = "https://api.github.com/repos/Itsmahedi/Cosmo-Downlaoder/releases/latest";
+const GITHUB_REPO_URL: &str = "https://github.com/Itsmahedi/Cosmo-Downlaoder";
+
+fn parse_semver(raw: &str) -> Option<(u64, u64, u64)> {
+    let trimmed = raw.trim().trim_start_matches(['v', 'V']);
+    let core = trimmed.split(['-', '+']).next().unwrap_or(trimmed);
+    let mut parts = core.split('.');
+    let major = parts.next()?.parse::<u64>().ok()?;
+    let minor = parts.next()?.parse::<u64>().ok()?;
+    let patch = parts.next().unwrap_or("0").parse::<u64>().ok()?;
+    Some((major, minor, patch))
+}
+
+fn is_newer_version(candidate: &str, current: &str) -> bool {
+    match (parse_semver(candidate), parse_semver(current)) {
+        (Some(cand), Some(curr)) => cand > curr,
+        _ => false,
+    }
+}
+
+fn open_url_in_browser(url: &str) {
+    #[cfg(windows)]
+    {
+        let mut cmd = std::process::Command::new("rundll32");
+        cmd.args(["url.dll,FileProtocolHandler", url]);
+        let _ = cmd.spawn();
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open").arg(url).spawn();
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct GithubLatestRelease {
+    tag_name: String,
+    html_url: String,
+}
+
+fn spawn_update_check(
+    db: Database,
+    ctx: egui::Context,
+) -> tokio::sync::mpsc::Receiver<Option<(String, String)>> {
+    let (tx, rx) = tokio::sync::mpsc::channel(1);
+    tokio::spawn(async move {
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let _ = db.set_setting("last_update_check_ts", &now_secs.to_string()).await;
+
+        let client = match reqwest::Client::builder()
+            .timeout(Duration::from_secs(8))
+            .user_agent(concat!("CosmoDownloader/", env!("CARGO_PKG_VERSION")))
+            .build()
+        {
+            Ok(c) => c,
+            Err(_) => {
+                let _ = tx.send(None).await;
+                ctx.request_repaint();
+                return;
+            }
+        };
+
+        let result = match client.get(GITHUB_RELEASES_LATEST_API).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                match resp.json::<GithubLatestRelease>().await {
+                    Ok(rel) => {
+                        let clean_ver = rel.tag_name.trim().trim_start_matches(['v', 'V']).to_string();
+                        if is_newer_version(&clean_ver, env!("CARGO_PKG_VERSION")) {
+                            let _ = db.set_setting("latest_release_version", &clean_ver).await;
+                            let _ = db.set_setting("latest_release_url", &rel.html_url).await;
+                            Some((clean_ver, rel.html_url))
+                        } else {
+                            let _ = db.set_setting("latest_release_version", "").await;
+                            let _ = db.set_setting("latest_release_url", "").await;
+                            None
+                        }
+                    }
+                    Err(_) => None,
+                }
+            }
+            _ => None,
+        };
+        let _ = tx.send(result).await;
+        ctx.request_repaint();
+    });
+    rx
 }
 
 #[cfg(windows)]
@@ -388,28 +678,11 @@ pub fn get_process_window() -> *mut std::ffi::c_void {
 
         // Fallback: title search
         let titles = [
-            "Download File Info\0",
-            "? Download File Info\0",
+            concat!("Cosmo Downloader v", env!("CARGO_PKG_VERSION"), "\0"),
             "Download File Info\0",
             "Downloading - Cosmo Downloader\0",
             "Download complete\0",
-            "? Download complete\0",
             "Download Complete\0",
-            "? Cosmo Downloader v1.11\0",
-            "Cosmo Downloader v1.11\0",
-            "? Cosmo Downloader v1.10\0",
-            "Cosmo Downloader v1.10\0",
-            "? Cosmo Downloader v1.8\0",
-            "✦ Cosmo Downloader v1.8\0",
-            "Cosmo Downloader v1.8\0",
-            "? Cosmo Downloader v1.3\0",
-            "✦ Cosmo Downloader v1.3\0",
-            "Cosmo Downloader v1.3\0",
-            "? Cosmo Downloader v1.2\0",
-            "✦ Cosmo Downloader v1.2\0",
-            "Cosmo Downloader v1.2\0",
-            "? Cosmo Downloader\0",
-            "✦ Cosmo Downloader\0",
             "Cosmo Downloader\0",
             "CosmoDownloader\0",
         ];
@@ -870,6 +1143,7 @@ struct CosmoDownloaderApp {
     confirm_delete_id: Option<String>,
     theme_mode: theme::ThemeMode,
     selected_row_ids: std::collections::HashSet<String>,
+    logo_texture: egui::TextureHandle,
 
     // Dialogs & Popup Mode
     is_popup_mode: bool,
@@ -878,6 +1152,9 @@ struct CosmoDownloaderApp {
     popup_opened_at: Option<std::time::Instant>,
     show_add_dialog: bool,
     show_settings_dialog: bool,
+    show_about_dialog: bool,
+    update_available: Option<(String, String)>,
+    update_check_rx: Option<tokio::sync::mpsc::Receiver<Option<(String, String)>>>,
     completed_dialog_record: Option<DownloadRecord>,
     is_completed_popup_mode: bool,
     active_popup_task_id: Option<String>,
@@ -946,9 +1223,12 @@ impl CosmoDownloaderApp {
         visuals.panel_fill = p.bg;
         visuals.widgets.noninteractive.bg_fill = p.surface;
         visuals.widgets.inactive.bg_fill = p.raise;
-        visuals.widgets.hovered.bg_fill = p.accent_soft;
-        visuals.widgets.active.bg_fill = p.accent;
+        visuals.widgets.hovered.bg_fill = theme::hover_raise(saved_theme);
+        visuals.widgets.active.bg_fill = p.accent_soft;
         cc.egui_ctx.set_visuals(visuals);
+
+        let logo_image = egui::ColorImage::from_rgba_unmultiplied([32, 32], ICON_RGBA);
+        let logo_texture = cc.egui_ctx.load_texture("cosmo_app_logo", logo_image, egui::TextureOptions::LINEAR);
 
         let mut is_standalone_popup = false;
         let mut standalone_popup_file = None;
@@ -1011,7 +1291,8 @@ impl CosmoDownloaderApp {
                     }
                     ctx_wake.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                     ctx_wake.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-                    ctx_wake.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
+                    ctx_wake.send_viewport_cmd(egui::ViewportCommand::Decorations(false));
+                    ctx_wake.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(theme::MAIN_WIDTH, theme::MAIN_HEIGHT)));
                     ctx_wake.send_viewport_cmd(egui::ViewportCommand::Focus);
                     ctx_wake.request_repaint();
                 })
@@ -1021,6 +1302,7 @@ impl CosmoDownloaderApp {
                     {
                         show_download_popup_window();
                     }
+                    ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
                     ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                     ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
                     ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 310.0)));
@@ -1052,6 +1334,7 @@ impl CosmoDownloaderApp {
                     {
                         show_download_popup_window();
                     }
+                    ctx_wake_clip.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
                     ctx_wake_clip.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                     ctx_wake_clip.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
                     ctx_wake_clip.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 310.0)));
@@ -1134,6 +1417,39 @@ impl CosmoDownloaderApp {
             })
         }).unwrap_or(CategoryFilter::All);
 
+        // Load cached update info & schedule background GitHub check (at most once per 24h)
+        let (initial_update_available, initial_update_rx) = if !is_standalone_popup {
+            let db_upd = db.clone();
+            let (cached_upd, should_check) = tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    let cached_ver = db_upd.get_setting("latest_release_version").await.ok().flatten().unwrap_or_default();
+                    let cached_url = db_upd.get_setting("latest_release_url").await.ok().flatten().unwrap_or_default();
+                    let last_ts: u64 = db_upd.get_setting("last_update_check_ts").await.ok().flatten()
+                        .and_then(|v| v.parse::<u64>().ok())
+                        .unwrap_or(0);
+                    let now_secs = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_secs())
+                        .unwrap_or(0);
+                    let cached = if !cached_ver.is_empty() && !cached_url.is_empty() && is_newer_version(&cached_ver, env!("CARGO_PKG_VERSION")) {
+                        Some((cached_ver, cached_url))
+                    } else {
+                        None
+                    };
+                    let due = now_secs.saturating_sub(last_ts) >= 86_400;
+                    (cached, due)
+                })
+            });
+            let rx = if should_check {
+                Some(spawn_update_check(db.clone(), cc.egui_ctx.clone()))
+            } else {
+                None
+            };
+            (cached_upd, rx)
+        } else {
+            (None, None)
+        };
+
         let mut app = Self {
             queue,
             downloads: initial_records,
@@ -1145,12 +1461,16 @@ impl CosmoDownloaderApp {
             confirm_delete_id: None,
             theme_mode: saved_theme,
             selected_row_ids: std::collections::HashSet::new(),
+            logo_texture,
             is_popup_mode: is_popup_arg,
             is_standalone_popup,
             standalone_popup_file,
             popup_opened_at: if is_popup_arg { Some(std::time::Instant::now()) } else { None },
             show_add_dialog: is_popup_arg,
             show_settings_dialog: false,
+            show_about_dialog: false,
+            update_available: initial_update_available,
+            update_check_rx: initial_update_rx,
             completed_dialog_record: None,
             is_completed_popup_mode: false,
             active_popup_task_id: None,
@@ -1479,12 +1799,13 @@ impl CosmoDownloaderApp {
                 ui.label(egui::RichText::new(cat_icon).size(42.0));
                 ui.add_space(4.0);
 
+                let palette = *self.theme_mode.palette();
                 if rustget_core::youtube::is_streaming_site(&self.add_url) {
-                    ui.label(egui::RichText::new("Adaptive Stream").strong().size(12.0).color(Color32::from_rgb(0, 240, 255)));
+                    ui.label(egui::RichText::new("Adaptive Stream").strong().size(12.0).color(palette.accent));
                 } else if let Some(sz) = self.add_file_size {
-                    ui.label(egui::RichText::new(SpeedTracker::format_bytes(sz)).strong().size(13.0).color(Color32::from_rgb(0, 240, 255)));
+                    ui.label(egui::RichText::new(SpeedTracker::format_bytes(sz)).strong().size(13.0).color(palette.accent));
                 } else {
-                    ui.label(egui::RichText::new("Probing size...").size(11.0).color(Color32::GRAY));
+                    ui.label(egui::RichText::new("Probing size...").size(11.0).color(palette.muted));
                 }
 
                 ui.add_space(8.0);
@@ -1499,14 +1820,10 @@ impl CosmoDownloaderApp {
         ui.separator();
         ui.add_space(8.0);
 
+        let palette = *self.theme_mode.palette();
         // Action Buttons Row (Download Later, Start Download, Cancel)
         ui.horizontal(|ui| {
-            let later_btn = egui::Button::new(
-                egui::RichText::new("Download Later").size(12.0),
-            )
-            .min_size(Vec2::new(120.0, 32.0));
-
-            if ui.add(later_btn).clicked() {
+            if secondary_button(ui, self.theme_mode, &palette, "Download Later", Vec2::new(120.0, 32.0), true).clicked() {
                 self.trigger_download(true);
                 self.popup_opened_at = None;
                 self.is_popup_mode = false;
@@ -1516,45 +1833,24 @@ impl CosmoDownloaderApp {
                 self.active_popup_task_id = None;
                 if is_standalone {
                     remove_popup_topmost();
-                    ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
-                    hide_main_window();
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-                    ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
+                    restore_main_viewport(ctx, false);
                 }
             }
 
             ui.add_space(8.0);
 
-            let start_btn = egui::Button::new(
-                egui::RichText::new("Start Download")
-                    .strong()
-                    .size(13.0)
-                    .color(Color32::WHITE),
-            )
-            .fill(Color32::from_rgb(0, 140, 255))
-            .min_size(Vec2::new(140.0, 32.0));
-
-            if ui.add(start_btn).clicked() {
+            if primary_button(ui, &palette, "Start Download", Vec2::new(140.0, 32.0), true).clicked() {
                 self.trigger_download(false);
                 self.is_popup_mode = false;
                 self.popup_opened_at = None;
                 self.is_progress_popup_mode = true;
                 self.is_completed_popup_mode = false;
                 self.completed_dialog_record = None;
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(520.0, 250.0)));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Title("Downloading - Cosmo Downloader".to_string()));
-                ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-                ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Critical));
-                #[cfg(windows)]
-                make_popup_topmost();
+                open_popup_viewport(ctx, Vec2::new(520.0, 250.0), "Downloading - Cosmo Downloader");
             }
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.add(egui::Button::new("Cancel").min_size(Vec2::new(80.0, 32.0))).clicked() {
+                if secondary_button(ui, self.theme_mode, &palette, "Cancel", Vec2::new(80.0, 32.0), true).clicked() {
                     self.show_add_dialog = false;
                     self.add_url.clear();
                     self.add_filename.clear();
@@ -1566,11 +1862,7 @@ impl CosmoDownloaderApp {
                     self.active_popup_task_id = None;
                     if is_standalone {
                         remove_popup_topmost();
-                        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
-                        hide_main_window();
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
+                        restore_main_viewport(ctx, false);
                     }
                 }
             });
@@ -1604,14 +1896,15 @@ impl CosmoDownloaderApp {
             ("0 B".to_string(), "Connecting...".to_string(), "0 B/s".to_string(), "--:--".to_string(), 0.0)
         };
 
+        let palette = *self.theme_mode.palette();
         // Header: Icon + Filename + Speed/ETA
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new("↓").size(32.0).color(Color32::from_rgb(0, 240, 255)));
+            ui.label(egui::RichText::new("↓").size(32.0).color(palette.accent));
             ui.add_space(8.0);
             ui.vertical(|ui| {
-                ui.label(egui::RichText::new(&fname).strong().size(13.5).color(Color32::WHITE));
+                ui.label(egui::RichText::new(&fname).strong().size(13.5).color(palette.text));
                 ui.add_space(2.0);
-                ui.label(egui::RichText::new(format!("Transfer rate: {}  |  Time left: {}", speed, eta)).size(11.0).color(Color32::from_rgb(0, 240, 255)));
+                ui.label(egui::RichText::new(format!("Transfer rate: {}  |  Time left: {}", speed, eta)).size(11.0).color(palette.accent));
             });
         });
 
@@ -1630,9 +1923,9 @@ impl CosmoDownloaderApp {
 
         // Details grid: Status, File path
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new("Status:").size(11.0).color(Color32::LIGHT_GRAY));
+            ui.label(egui::RichText::new("Status:").size(11.0).color(palette.muted));
             let status_text = if ratio >= 1.0 { "Finishing download..." } else if ratio > 0.0 { "Downloading..." } else { "Connecting to server..." };
-            ui.label(egui::RichText::new(status_text).size(11.0).color(Color32::WHITE));
+            ui.label(egui::RichText::new(status_text).size(11.0).color(palette.text));
         });
         ui.add_space(2.0);
         ui.horizontal(|ui| {
@@ -1681,31 +1974,17 @@ impl CosmoDownloaderApp {
                 self.active_popup_task_id = None;
                 if is_standalone {
                     remove_popup_topmost();
-                    ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
-                    hide_main_window();
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-                    ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
+                    restore_main_viewport(ctx, false);
                 }
             }
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // Close button: hides progress dialog while download continues in background
-                let close_btn = egui::Button::new(
-                    egui::RichText::new("Close").strong().color(Color32::WHITE)
-                )
-                .fill(Color32::from_rgb(45, 48, 86))
-                .min_size(Vec2::new(90.0, 30.0));
-
-                if ui.add(close_btn).clicked() {
+                if primary_button(ui, &palette, "Close", Vec2::new(90.0, 30.0), true).clicked() {
                     self.is_progress_popup_mode = false;
                     if is_standalone {
                         remove_popup_topmost();
-                        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
-                        hide_main_window();
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
+                        restore_main_viewport(ctx, false);
                     }
                 }
             });
@@ -1723,9 +2002,10 @@ impl CosmoDownloaderApp {
                 ("Unknown".to_string(), 0)
             };
 
+            let palette = *self.theme_mode.palette();
             // Top section: Folder Icon + "Download complete" + size in bytes
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("✓").size(36.0).color(Color32::from_rgb(34, 197, 94)));
+                ui.label(egui::RichText::new("✓").size(36.0).color(theme::EMERALD_SUCCESS));
                 ui.add_space(8.0);
 
                 ui.vertical(|ui| {
@@ -1733,13 +2013,13 @@ impl CosmoDownloaderApp {
                         egui::RichText::new("Download complete")
                             .strong()
                             .size(13.0)
-                            .color(Color32::WHITE),
+                            .color(palette.text),
                     );
                     ui.add_space(2.0);
                     ui.label(
                         egui::RichText::new(format!("Downloaded {} ({} Bytes)", sz_formatted, bytes_num))
                             .size(11.5)
-                            .color(Color32::from_rgb(205, 210, 220)),
+                            .color(palette.muted),
                     );
                 });
             });
@@ -1747,7 +2027,7 @@ impl CosmoDownloaderApp {
             ui.add_space(8.0);
 
             // "Address" label + Full width textedit
-            ui.label(egui::RichText::new("Address").size(11.5).color(Color32::from_rgb(220, 220, 220)));
+            ui.label(egui::RichText::new("Address").size(11.5).color(palette.text));
             ui.add_space(2.0);
             let mut url_disp = record.url.clone();
             ui.add(
@@ -1759,9 +2039,9 @@ impl CosmoDownloaderApp {
 
             // "The file saved as" label with quick Copy Path button
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("The file saved as").size(11.5).color(Color32::from_rgb(220, 220, 220)));
+                ui.label(egui::RichText::new("The file saved as").size(11.5).color(palette.text));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button(egui::RichText::new("Copy").size(10.5).color(Color32::from_rgb(0, 229, 255))).clicked() {
+                    if ui.button(egui::RichText::new("Copy").size(10.5).color(palette.accent)).clicked() {
                         ui.output_mut(|o| o.copied_text = record.target_path.clone());
                     }
                 });
@@ -1776,45 +2056,29 @@ impl CosmoDownloaderApp {
 
             ui.add_space(12.0);
 
-            // Row of 4 buttons matching IDM: [ Open ]  [ Open with... ]  [ Open folder ]  [ Close ]
+            // Row of 4 buttons: [ Open ]  [ Open with... ]  [ Open folder ]  [ Close ]
             ui.horizontal(|ui| {
                 let btn_size = Vec2::new(115.0, 26.0);
 
-                let open_btn = egui::Button::new(
-                    egui::RichText::new("Open").size(12.0).color(Color32::WHITE)
-                ).min_size(btn_size);
-
-                if ui.add(open_btn).clicked() {
+                if primary_button(ui, &palette, "Open", btn_size, true).clicked() {
                     shell_open_file(&record.target_path);
                 }
 
                 ui.add_space(6.0);
 
-                let open_with_btn = egui::Button::new(
-                    egui::RichText::new("Open with...").size(12.0).color(Color32::WHITE)
-                ).min_size(btn_size);
-
-                if ui.add(open_with_btn).clicked() {
+                if secondary_button(ui, self.theme_mode, &palette, "Open with...", btn_size, true).clicked() {
                     shell_open_with(&record.target_path);
                 }
 
                 ui.add_space(6.0);
 
-                let folder_btn = egui::Button::new(
-                    egui::RichText::new("Open folder").size(12.0).color(Color32::WHITE)
-                ).min_size(btn_size);
-
-                if ui.add(folder_btn).clicked() {
+                if secondary_button(ui, self.theme_mode, &palette, "Open folder", btn_size, true).clicked() {
                     shell_open_folder_and_select(&record.target_path);
                 }
 
                 ui.add_space(6.0);
 
-                let close_btn = egui::Button::new(
-                    egui::RichText::new("Close").size(12.0).color(Color32::WHITE)
-                ).min_size(btn_size);
-
-                if ui.add(close_btn).clicked() {
+                if secondary_button(ui, self.theme_mode, &palette, "Close", btn_size, true).clicked() {
                     if self.is_standalone_popup {
                         if let Some(ref f) = self.standalone_popup_file {
                             let _ = std::fs::remove_file(f);
@@ -1829,11 +2093,7 @@ impl CosmoDownloaderApp {
                     self.popup_opened_at = None;
                     if is_standalone {
                         remove_popup_topmost();
-                        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
-                        hide_main_window();
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
+                        restore_main_viewport(ctx, false);
                     }
                 }
             });
@@ -1842,7 +2102,7 @@ impl CosmoDownloaderApp {
 
             // Bottom row: [ ] Don't show this dialog again
             ui.horizontal(|ui| {
-                ui.checkbox(&mut self.setting_dont_show_complete_dialog, egui::RichText::new("Don't show this dialog again").size(11.0).color(Color32::LIGHT_GRAY));
+                ui.checkbox(&mut self.setting_dont_show_complete_dialog, egui::RichText::new("Don't show this dialog again").size(11.0).color(palette.muted));
             });
         }
     }
@@ -1865,6 +2125,16 @@ impl eframe::App for CosmoDownloaderApp {
         // Continuous redraw when downloads are active
         ctx.request_repaint_after(Duration::from_millis(100));
 
+        // Poll non-blocking GitHub release update checker
+        if let Some(ref mut rx) = self.update_check_rx {
+            if let Ok(result) = rx.try_recv() {
+                if result.is_some() {
+                    self.update_available = result;
+                }
+                self.update_check_rx = None;
+            }
+        }
+
         // Intercept window close when minimize_to_tray is enabled and tray icon is active
         if ctx.input(|i| i.viewport().close_requested()) {
             if self.is_progress_popup_mode {
@@ -1872,11 +2142,7 @@ impl eframe::App for CosmoDownloaderApp {
                 self.is_progress_popup_mode = false;
                 self.active_popup_task_id = None;
                 remove_popup_topmost();
-                ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
-                hide_main_window();
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
+                restore_main_viewport(ctx, false);
                 return;
             }
             if self.is_completed_popup_mode {
@@ -1888,11 +2154,7 @@ impl eframe::App for CosmoDownloaderApp {
                 self.active_popup_task_id = None;
                 self.popup_opened_at = None;
                 remove_popup_topmost();
-                ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
-                hide_main_window();
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
+                restore_main_viewport(ctx, false);
                 return;
             }
             if self.is_popup_mode {
@@ -1914,19 +2176,13 @@ impl eframe::App for CosmoDownloaderApp {
                 self.add_url.clear();
                 self.add_filename.clear();
                 remove_popup_topmost();
-                ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
-                hide_main_window();
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
+                restore_main_viewport(ctx, false);
                 return;
             }
             // Main window [X] close: hide to background / tray without killing bridge listener
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             remove_popup_topmost();
-            ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
-            hide_main_window();
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+            restore_main_viewport(ctx, false);
             return;
         }
 
@@ -2017,15 +2273,7 @@ impl eframe::App for CosmoDownloaderApp {
                         });
                         self.completed_dialog_record = Some(record);
                         self.is_completed_popup_mode = true;
-                        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 260.0)));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Title("Download complete".to_string()));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-                        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Critical));
-                        #[cfg(windows)]
-                        make_popup_topmost();
+                        open_popup_viewport(ctx, Vec2::new(560.0, 260.0), "Download complete");
                     }
                 }
                 QueueEvent::TaskAdded(_) | QueueEvent::TaskFailed { .. } => {
@@ -2054,21 +2302,14 @@ impl eframe::App for CosmoDownloaderApp {
         // Process external show requests (from second instance launch or HTTP /show)
         while let Ok(_) = self.show_rx.try_recv() {
             if self.is_popup_mode || self.is_progress_popup_mode || self.is_completed_popup_mode {
-                // If any download popup or progress popup is active, NEVER destroy it or resize to 880x560!
+                // If any download popup or progress popup is active, NEVER destroy it or resize to main size!
                 continue;
             }
             self.is_popup_mode = false;
             self.is_progress_popup_mode = false;
             self.is_completed_popup_mode = false;
             remove_popup_topmost();
-            ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
-            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-            ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
-            show_main_window();
-            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-            ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Critical));
+            restore_main_viewport(ctx, true);
         }
 
         // Process browser extension download requests (IDM popup dialog - compact standalone)
@@ -2081,15 +2322,7 @@ impl eframe::App for CosmoDownloaderApp {
             self.completed_dialog_record = None;
             self.active_popup_task_id = None;
             self.show_add_dialog = true;
-            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 310.0)));
-            ctx.send_viewport_cmd(egui::ViewportCommand::Title("Download File Info".to_string()));
-            ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop));
-            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-            ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Critical));
-            #[cfg(windows)]
-            make_popup_topmost();
+            open_popup_viewport(ctx, Vec2::new(560.0, 310.0), "Download File Info");
         }
 
         // Process clipboard events
@@ -2103,15 +2336,7 @@ impl eframe::App for CosmoDownloaderApp {
                 self.completed_dialog_record = None;
                 self.active_popup_task_id = None;
                 self.show_add_dialog = true;
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 310.0)));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Title("Download File Info".to_string()));
-                ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-                ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Critical));
-                #[cfg(windows)]
-                make_popup_topmost();
+                open_popup_viewport(ctx, Vec2::new(560.0, 310.0), "Download File Info");
             }
         }
 
@@ -2124,29 +2349,14 @@ impl eframe::App for CosmoDownloaderApp {
                         self.is_progress_popup_mode = false;
                         self.is_completed_popup_mode = false;
                         remove_popup_topmost();
-                        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
-                        show_main_window();
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
-                        ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Critical));
-                        #[cfg(windows)]
-                        make_popup_topmost();
+                        restore_main_viewport(ctx, true);
                     }
                     "add" => {
                         self.is_popup_mode = false;
                         self.is_progress_popup_mode = false;
                         self.is_completed_popup_mode = false;
                         remove_popup_topmost();
-                        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
-                        show_main_window();
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                        restore_main_viewport(ctx, true);
                         self.show_add_dialog = true;
                     }
                     "exit" => {
@@ -2155,36 +2365,6 @@ impl eframe::App for CosmoDownloaderApp {
                     _ => {}
                 }
             }
-        }
-
-        // Standalone Compact Progress Popup Mode
-        if self.is_progress_popup_mode {
-            egui::CentralPanel::default()
-                .frame(egui::Frame::none().fill(Color32::from_rgb(20, 22, 38)).inner_margin(Margin::same(16.0)))
-                .show(ctx, |ui| {
-                    self.render_download_progress(ui, ctx, true);
-                });
-            return;
-        }
-
-        // Standalone Compact Completion Popup Mode
-        if self.is_completed_popup_mode && self.completed_dialog_record.is_some() {
-            egui::CentralPanel::default()
-                .frame(egui::Frame::none().fill(Color32::from_rgb(20, 22, 38)).inner_margin(Margin::same(16.0)))
-                .show(ctx, |ui| {
-                    self.render_download_complete(ui, ctx, true);
-                });
-            return;
-        }
-
-        // Standalone Compact Popup Mode (renders ONLY the Download File Info interface)
-        if self.is_popup_mode {
-            egui::CentralPanel::default()
-                .frame(egui::Frame::none().fill(Color32::from_rgb(20, 22, 38)).inner_margin(Margin::same(16.0)))
-                .show(ctx, |ui| {
-                    self.render_download_file_info(ui, ctx, true);
-                });
-            return;
         }
 
         // Dynamic theme synchronization
@@ -2201,142 +2381,347 @@ impl eframe::App for CosmoDownloaderApp {
         visuals.widgets.noninteractive.bg_fill = palette.surface;
         visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0_f32, palette.text);
         visuals.widgets.inactive.bg_fill = palette.raise;
+        visuals.widgets.inactive.weak_bg_fill = palette.raise;
+        visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, palette.line);
         visuals.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, palette.text);
-        visuals.widgets.hovered.bg_fill = palette.accent_soft;
-        visuals.widgets.hovered.fg_stroke = Stroke::new(1.0_f32, palette.accent);
-        visuals.widgets.active.bg_fill = palette.accent;
-        visuals.widgets.active.fg_stroke = Stroke::new(1.0_f32, palette.on_accent);
+        visuals.widgets.hovered.bg_fill = theme::hover_raise(self.theme_mode);
+        visuals.widgets.hovered.weak_bg_fill = theme::hover_raise(self.theme_mode);
+        visuals.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, palette.line);
+        visuals.widgets.hovered.fg_stroke = Stroke::new(1.0_f32, palette.text);
+        visuals.widgets.active.bg_fill = palette.accent_soft;
+        visuals.widgets.active.fg_stroke = Stroke::new(1.0_f32, palette.accent);
         ctx.set_visuals(visuals);
+
+        // Standalone Compact Progress Popup Mode
+        if self.is_progress_popup_mode {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::none().fill(palette.surface).inner_margin(Margin::same(16.0)))
+                .show(ctx, |ui| {
+                    self.render_download_progress(ui, ctx, true);
+                });
+            return;
+        }
+
+        // Standalone Compact Completion Popup Mode
+        if self.is_completed_popup_mode && self.completed_dialog_record.is_some() {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::none().fill(palette.surface).inner_margin(Margin::same(16.0)))
+                .show(ctx, |ui| {
+                    self.render_download_complete(ui, ctx, true);
+                });
+            return;
+        }
+
+        // Standalone Compact Popup Mode (renders ONLY the Download File Info interface)
+        if self.is_popup_mode {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::none().fill(palette.surface).inner_margin(Margin::same(16.0)))
+                .show(ctx, |ui| {
+                    self.render_download_file_info(ui, ctx, true);
+                });
+            return;
+        }
 
         // Top Titlebar & Menu & Toolbar
         egui::TopBottomPanel::top("top_panel")
-            .frame(egui::Frame::none().fill(palette.surface).stroke(Stroke::new(1.0_f32, palette.line)))
+            .frame(egui::Frame::none().fill(palette.surface))
             .show(ctx, |ui| {
-                // Window Title Bar (custom styled row)
-                ui.horizontal(|ui| {
-                    ui.add_space(4.0);
-                    let (logo_rect, _) = ui.allocate_exact_size(Vec2::splat(18.0), egui::Sense::hover());
-                    icons::draw_all(ui.painter(), logo_rect, palette.accent);
-                    ui.add_space(4.0);
-                    ui.label(egui::RichText::new(format!("Cosmo Downloader v{}", env!("CARGO_PKG_VERSION"))).size(12.5).strong().color(palette.text));
-                    
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        // Close [X] with red hover
-                        let close_resp = ui.add(egui::Button::new(egui::RichText::new("✕").size(11.0)).frame(false));
-                        if close_resp.hovered() {
-                            ui.painter().rect_filled(close_resp.rect.expand2(Vec2::new(4.0, 2.0)), Rounding::same(4.0), palette.danger);
-                        }
-                        if close_resp.clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                        }
+                ui.spacing_mut().item_spacing = Vec2::ZERO;
 
-                        // Maximize [+]
-                        if ui.add(egui::Button::new(egui::RichText::new("□").size(11.0)).frame(false)).clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
-                        }
+                // 1. Custom Frameless Window Title Bar (36px high, 12px left padding)
+                let (titlebar_rect, _) = ui.allocate_exact_size(
+                    Vec2::new(ui.available_width(), 36.0),
+                    egui::Sense::hover(),
+                );
+                let win_btn_w = 46.0;
+                let controls_total_w = win_btn_w * 3.0;
+                let close_rect = Rect::from_min_size(
+                    pos2(titlebar_rect.right() - win_btn_w, titlebar_rect.top()),
+                    Vec2::new(win_btn_w, 36.0),
+                );
+                let max_rect = Rect::from_min_size(
+                    pos2(titlebar_rect.right() - win_btn_w * 2.0, titlebar_rect.top()),
+                    Vec2::new(win_btn_w, 36.0),
+                );
+                let min_rect = Rect::from_min_size(
+                    pos2(titlebar_rect.right() - controls_total_w, titlebar_rect.top()),
+                    Vec2::new(win_btn_w, 36.0),
+                );
+                let drag_rect = Rect::from_min_max(
+                    titlebar_rect.min,
+                    pos2(min_rect.left(), titlebar_rect.bottom()),
+                );
+                let titlebar_drag = ui.interact(drag_rect, ui.id().with("win_title_drag"), egui::Sense::click_and_drag());
 
-                        // Minimize [-]
-                        if ui.add(egui::Button::new(egui::RichText::new("—").size(11.0)).frame(false)).clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
-                        }
-                    });
-                });
+                // Icon (icon.ico texture) + Title
+                let icon_rect = Rect::from_center_size(
+                    pos2(titlebar_rect.left() + 12.0 + 9.0, titlebar_rect.center().y),
+                    Vec2::splat(18.0),
+                );
+                ui.painter().image(
+                    self.logo_texture.id(),
+                    icon_rect,
+                    Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
+                    Color32::WHITE,
+                );
+                let title_str = format!("Cosmo Downloader v{}", env!("CARGO_PKG_VERSION"));
+                let title_galley = ui.painter().layout_no_wrap(
+                    title_str,
+                    egui::FontId::proportional(12.5),
+                    palette.text,
+                );
+                ui.painter().galley(
+                    pos2(icon_rect.right() + 8.0, titlebar_rect.center().y - title_galley.size().y / 2.0),
+                    title_galley,
+                    palette.text,
+                );
 
-                ui.add_space(2.0);
-                ui.separator();
-                ui.add_space(2.0);
+                // Window Control Buttons (no-drag interactive zones)
+                let min_resp = ui.interact(min_rect, ui.id().with("win_min_btn"), egui::Sense::click());
+                let max_resp = ui.interact(max_rect, ui.id().with("win_max_btn"), egui::Sense::click());
+                let close_resp = ui.interact(close_rect, ui.id().with("win_close_btn"), egui::Sense::click());
 
-                // Menu bar: File, Downloads, View, Tools, Help + Theme Toggle
-                ui.horizontal(|ui| {
-                    for menu_name in ["File", "Downloads", "View", "Tools", "Help"] {
-                        let _ = ui.add(egui::Button::new(egui::RichText::new(menu_name).size(12.5)).frame(false));
-                    }
+                if min_resp.hovered() {
+                    ui.painter().rect_filled(min_rect, Rounding::ZERO, palette.raise);
+                }
+                icons::draw_win_min(ui.painter(), min_rect.center(), palette.muted);
+                if min_resp.clicked() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                }
 
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let theme_label = if self.theme_mode == theme::ThemeMode::Dark { "☀ Light mode" } else { "☾ Dark mode" };
-                        if ui.add(egui::Button::new(egui::RichText::new(theme_label).size(12.0).color(palette.muted))).clicked() {
-                            self.theme_mode = self.theme_mode.toggle();
-                            let q = Arc::clone(&self.queue);
-                            let t_str = self.theme_mode.label();
-                            tokio::spawn(async move {
-                                let _ = q.db().set_setting("ui_theme_mode", t_str).await;
+                let is_maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
+                if max_resp.hovered() {
+                    ui.painter().rect_filled(max_rect, Rounding::ZERO, palette.raise);
+                }
+                icons::draw_win_max(ui.painter(), max_rect.center(), palette.muted, is_maximized);
+                if max_resp.clicked() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
+                }
+
+                if close_resp.hovered() {
+                    ui.painter().rect_filled(close_rect, Rounding::ZERO, palette.danger);
+                }
+                icons::draw_win_close(
+                    ui.painter(),
+                    close_rect.center(),
+                    if close_resp.hovered() { Color32::WHITE } else { palette.muted },
+                );
+                if close_resp.clicked() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+
+                // Drag & double-click maximize on title bar outside control buttons
+                if titlebar_drag.double_clicked() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
+                } else if titlebar_drag.drag_started() {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                }
+
+                // Hairline separator below title bar
+                let sep1_y = titlebar_rect.bottom();
+                ui.painter().line_segment(
+                    [pos2(titlebar_rect.left(), sep1_y), pos2(titlebar_rect.right(), sep1_y)],
+                    Stroke::new(1.0_f32, palette.line),
+                );
+
+                // 2. Menu bar: height 36px, horizontal padding 8px
+                egui::Frame::none()
+                    .inner_margin(Margin::symmetric(8.0, 4.0))
+                    .show(ui, |ui| {
+                        ui.set_min_height(28.0);
+                        ui.spacing_mut().item_spacing.x = 2.0;
+                        ui.horizontal_centered(|ui| {
+                            ui.scope(|ui| {
+                                ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
+                                ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
+                                ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::NONE;
+                                ui.visuals_mut().widgets.inactive.fg_stroke = Stroke::new(1.0_f32, palette.muted);
+                                ui.visuals_mut().widgets.hovered.weak_bg_fill = palette.raise;
+                                ui.visuals_mut().widgets.hovered.bg_fill = palette.raise;
+                                ui.visuals_mut().widgets.hovered.bg_stroke = Stroke::NONE;
+                                ui.visuals_mut().widgets.hovered.fg_stroke = Stroke::new(1.0_f32, palette.text);
+                                ui.visuals_mut().widgets.open.weak_bg_fill = palette.raise;
+                                ui.visuals_mut().widgets.open.bg_fill = palette.raise;
+                                ui.visuals_mut().widgets.open.fg_stroke = Stroke::new(1.0_f32, palette.text);
+
+                                ui.menu_button(egui::RichText::new("File").size(12.5), |ui| {
+                                    if ui.button("Add Download URL...").clicked() {
+                                        self.show_add_dialog = true;
+                                        ui.close_menu();
+                                    }
+                                    ui.separator();
+                                    if ui.button("Exit").clicked() {
+                                        std::process::exit(0);
+                                    }
+                                });
+
+                                ui.menu_button(egui::RichText::new("Downloads").size(12.5), |ui| {
+                                    if ui.button("Pause All").clicked() {
+                                        let q = Arc::clone(&self.queue);
+                                        let ids: Vec<String> = self.downloads.iter()
+                                            .filter(|d| d.status == "downloading" || d.status == "queued")
+                                            .map(|d| d.id.clone())
+                                            .collect();
+                                        tokio::spawn(async move {
+                                            for id in ids { let _ = q.pause(&id).await; }
+                                        });
+                                        ui.close_menu();
+                                    }
+                                    if ui.button("Resume All").clicked() {
+                                        let q = Arc::clone(&self.queue);
+                                        let ids: Vec<String> = self.downloads.iter()
+                                            .filter(|d| d.status == "paused" || d.status == "failed")
+                                            .map(|d| d.id.clone())
+                                            .collect();
+                                        tokio::spawn(async move {
+                                            for id in ids { let _ = q.resume(&id).await; }
+                                        });
+                                        ui.close_menu();
+                                    }
+                                });
+
+                                ui.menu_button(egui::RichText::new("View").size(12.5), |ui| {
+                                    let label = if self.theme_mode == theme::ThemeMode::Dark {
+                                        "Switch to Light mode"
+                                    } else {
+                                        "Switch to Dark mode"
+                                    };
+                                    if ui.button(label).clicked() {
+                                        self.theme_mode = self.theme_mode.toggle();
+                                        let q = Arc::clone(&self.queue);
+                                        let t_str = self.theme_mode.label();
+                                        tokio::spawn(async move {
+                                            let _ = q.db().set_setting("ui_theme_mode", t_str).await;
+                                        });
+                                        ui.close_menu();
+                                    }
+                                });
+
+                                ui.menu_button(egui::RichText::new("Tools").size(12.5), |ui| {
+                                    if ui.button("Settings...").clicked() {
+                                        self.show_settings_dialog = true;
+                                        ui.close_menu();
+                                    }
+                                });
+
+                                ui.menu_button(egui::RichText::new("Help").size(12.5), |ui| {
+                                    if ui.button("Check for updates").clicked() {
+                                        self.update_check_rx = Some(spawn_update_check(self.queue.db().clone(), ctx.clone()));
+                                        ui.close_menu();
+                                    }
+                                    if ui.button("About Cosmo Downloader").clicked() {
+                                        self.show_about_dialog = true;
+                                        ui.close_menu();
+                                    }
+                                });
                             });
-                        }
+
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                let theme_label = if self.theme_mode == theme::ThemeMode::Dark {
+                                    "☀ Light mode"
+                                } else {
+                                    "☾ Dark mode"
+                                };
+                                if secondary_button(ui, self.theme_mode, &palette, theme_label, Vec2::new(96.0, 26.0), true).clicked() {
+                                    self.theme_mode = self.theme_mode.toggle();
+                                    let q = Arc::clone(&self.queue);
+                                    let t_str = self.theme_mode.label();
+                                    tokio::spawn(async move {
+                                        let _ = q.db().set_setting("ui_theme_mode", t_str).await;
+                                    });
+                                }
+                            });
+                        });
                     });
-                });
 
-                ui.add_space(2.0);
-                ui.separator();
-                ui.add_space(4.0);
+                // Hairline separator below menu bar
+                let menu_bottom = ui.min_rect().bottom();
+                ui.painter().line_segment(
+                    [pos2(titlebar_rect.left(), menu_bottom), pos2(titlebar_rect.right(), menu_bottom)],
+                    Stroke::new(1.0_f32, palette.line),
+                );
 
-                // Toolbar: Add URL, Pause All, Resume All, Delete (enabled only when selection), Settings
-                ui.horizontal(|ui| {
-                    let btn_size = Vec2::new(76.0, 32.0);
+                // 3. Toolbar: padding 8px 12px
+                egui::Frame::none()
+                    .inner_margin(Margin::symmetric(12.0, 8.0))
+                    .show(ui, |ui| {
+                        ui.spacing_mut().item_spacing.x = 6.0;
+                        ui.horizontal(|ui| {
+                            let btn_size = Vec2::new(82.0, 30.0);
 
-                    if ui.add(egui::Button::new(egui::RichText::new("+ Add URL").size(12.0)).min_size(btn_size)).clicked() {
-                        self.show_add_dialog = true;
-                    }
-
-                    ui.separator();
-
-                    if ui.add(egui::Button::new(egui::RichText::new("⏸ Pause All").size(12.0)).min_size(btn_size)).clicked() {
-                        let q = Arc::clone(&self.queue);
-                        let ids: Vec<String> = self.downloads.iter()
-                            .filter(|d| d.status == "downloading" || d.status == "queued")
-                            .map(|d| d.id.clone())
-                            .collect();
-                        tokio::spawn(async move {
-                            for id in ids {
-                                let _ = q.pause(&id).await;
+                            if secondary_button(ui, self.theme_mode, &palette, "+ Add URL", btn_size, true).clicked() {
+                                self.show_add_dialog = true;
                             }
-                        });
-                    }
 
-                    if ui.add(egui::Button::new(egui::RichText::new("▶ Resume All").size(12.0)).min_size(btn_size)).clicked() {
-                        let q = Arc::clone(&self.queue);
-                        let ids: Vec<String> = self.downloads.iter()
-                            .filter(|d| d.status == "paused" || d.status == "failed")
-                            .map(|d| d.id.clone())
-                            .collect();
-                        tokio::spawn(async move {
-                            for id in ids {
-                                let _ = q.resume(&id).await;
+                            ui.add_space(2.0);
+                            ui.separator();
+                            ui.add_space(2.0);
+
+                            if secondary_button(ui, self.theme_mode, &palette, "⏸ Pause All", btn_size, true).clicked() {
+                                let q = Arc::clone(&self.queue);
+                                let ids: Vec<String> = self.downloads.iter()
+                                    .filter(|d| d.status == "downloading" || d.status == "queued")
+                                    .map(|d| d.id.clone())
+                                    .collect();
+                                tokio::spawn(async move {
+                                    for id in ids {
+                                        let _ = q.pause(&id).await;
+                                    }
+                                });
                             }
-                        });
-                    }
 
-                    let has_selection = !self.selected_row_ids.is_empty();
-                    let del_btn = egui::Button::new(egui::RichText::new("🗑 Delete").size(12.0)).min_size(btn_size);
-                    if ui.add_enabled(has_selection, del_btn).clicked() {
-                        let q = Arc::clone(&self.queue);
-                        let ids: Vec<String> = self.selected_row_ids.iter().cloned().collect();
-                        tokio::spawn(async move {
-                            for id in ids {
-                                let _ = q.remove(&id, false).await;
+                            if secondary_button(ui, self.theme_mode, &palette, "▶ Resume All", Vec2::new(94.0, 30.0), true).clicked() {
+                                let q = Arc::clone(&self.queue);
+                                let ids: Vec<String> = self.downloads.iter()
+                                    .filter(|d| d.status == "paused" || d.status == "failed")
+                                    .map(|d| d.id.clone())
+                                    .collect();
+                                tokio::spawn(async move {
+                                    for id in ids {
+                                        let _ = q.resume(&id).await;
+                                    }
+                                });
                             }
+
+                            let has_selection = !self.selected_row_ids.is_empty();
+                            if secondary_button(ui, self.theme_mode, &palette, "🗑 Delete", btn_size, has_selection).clicked() {
+                                let q = Arc::clone(&self.queue);
+                                let ids: Vec<String> = self.selected_row_ids.iter().cloned().collect();
+                                tokio::spawn(async move {
+                                    for id in ids {
+                                        let _ = q.remove(&id, false).await;
+                                    }
+                                });
+                                self.selected_row_ids.clear();
+                            }
+
+                            ui.add_space(2.0);
+                            ui.separator();
+                            ui.add_space(2.0);
+
+                            if secondary_button(ui, self.theme_mode, &palette, "⚙ Settings", btn_size, true).clicked() {
+                                self.show_settings_dialog = true;
+                            }
+
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                let total_speed: f64 = self.active_progress.values().map(|p| p.speed_bps).sum();
+                                if total_speed > 0.0 {
+                                    ui.label(
+                                        egui::RichText::new(format!("Speed: {}", SpeedTracker::format_speed(total_speed)))
+                                            .color(palette.accent)
+                                            .strong()
+                                            .size(11.5),
+                                    );
+                                }
+                            });
                         });
-                        self.selected_row_ids.clear();
-                    }
-
-                    ui.separator();
-
-                    if ui.add(egui::Button::new(egui::RichText::new("⚙ Settings").size(12.0)).min_size(btn_size)).clicked() {
-                        self.show_settings_dialog = true;
-                    }
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let total_speed: f64 = self.active_progress.values().map(|p| p.speed_bps).sum();
-                        if total_speed > 0.0 {
-                            ui.label(
-                                egui::RichText::new(format!("Speed: {}", SpeedTracker::format_speed(total_speed)))
-                                    .color(palette.accent)
-                                    .strong()
-                                    .size(11.5),
-                            );
-                        }
                     });
-                });
-                ui.add_space(4.0);
+
+                let tb_bottom = ui.min_rect().bottom();
+                ui.painter().line_segment(
+                    [pos2(titlebar_rect.left(), tb_bottom), pos2(titlebar_rect.right(), tb_bottom)],
+                    Stroke::new(1.0_f32, palette.line),
+                );
             });
 
         // Bottom Status Bar
@@ -2345,9 +2730,12 @@ impl eframe::App for CosmoDownloaderApp {
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     let total_speed: f64 = self.active_progress.values().map(|p| p.speed_bps).sum();
-                    let speed_mb = total_speed / (1024.0 * 1024.0);
+                    let raw_mb = total_speed / (1024.0 * 1024.0);
+                    let speed_mb = if raw_mb > 0.0 { raw_mb } else { 0.0 };
+                    let count = self.downloads.len();
+                    let item_word = if count == 1 { "item" } else { "items" };
                     ui.label(
-                        egui::RichText::new(format!("{} items · {:.1} MB/s · Warp Engine active", self.downloads.len(), speed_mb))
+                        egui::RichText::new(format!("{} {} · {:.1} MB/s · Warp Engine active", count, item_word, speed_mb))
                             .size(11.5)
                             .color(palette.muted),
                     );
@@ -2358,6 +2746,28 @@ impl eframe::App for CosmoDownloaderApp {
                                 .size(11.5)
                                 .color(palette.muted),
                         );
+
+                        if let Some((ref new_ver, ref rel_url)) = self.update_available.clone() {
+                            ui.add_space(12.0);
+                            if ui.add(
+                                egui::Button::new(
+                                    egui::RichText::new("View release")
+                                        .size(11.0)
+                                        .color(palette.accent),
+                                )
+                                .frame(false),
+                            )
+                            .on_hover_cursor(egui::CursorIcon::PointingHand)
+                            .clicked()
+                            {
+                                open_url_in_browser(rel_url);
+                            }
+                            ui.label(
+                                egui::RichText::new(format!("Update available v{}", new_ver))
+                                    .size(11.5)
+                                    .color(palette.accent),
+                            );
+                        }
                     });
                 });
             });
@@ -2368,28 +2778,32 @@ impl eframe::App for CosmoDownloaderApp {
         // Left Navigation Bar (Categories & Filters)
         egui::SidePanel::left("side_panel")
             .resizable(false)
-            .default_width(190.0)
-            .frame(egui::Frame::none().fill(palette.bg).stroke(Stroke::new(1.0_f32, palette.line)).inner_margin(Margin::same(12.0)))
+            .default_width(204.0)
+            .frame(egui::Frame::none().fill(palette.bg).stroke(Stroke::new(1.0_f32, palette.line)).inner_margin(Margin::symmetric(10.0, 10.0)))
             .show(ctx, |ui| {
-                ui.label(egui::RichText::new("Status").size(12.0).color(palette.muted).strong());
-                ui.add_space(4.0);
+                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                    ui.spacing_mut().item_spacing.y = 2.0;
 
-                sidebar_row(ui, &mut self.selected_tab, FilterTab::All, "All Downloads", self.counts.status_all, &palette, icons::draw_all);
-                sidebar_row(ui, &mut self.selected_tab, FilterTab::Downloading, "Downloading", self.counts.status_downloading, &palette, icons::draw_play);
-                sidebar_row(ui, &mut self.selected_tab, FilterTab::Completed, "Completed", self.counts.status_completed, &palette, icons::draw_folder);
-                sidebar_row(ui, &mut self.selected_tab, FilterTab::Paused, "Paused", self.counts.status_paused, &palette, icons::draw_pause);
+                    ui.label(egui::RichText::new("Status").size(11.5).color(palette.muted).strong());
+                    ui.add_space(4.0);
 
-                ui.add_space(16.0);
-                ui.label(egui::RichText::new("Categories").size(12.0).color(palette.muted).strong());
-                ui.add_space(4.0);
+                    sidebar_row(ui, &mut self.selected_tab, FilterTab::All, "All Downloads", self.counts.status_all, &palette, icons::draw_all);
+                    sidebar_row(ui, &mut self.selected_tab, FilterTab::Downloading, "Downloading", self.counts.status_downloading, &palette, icons::draw_play);
+                    sidebar_row(ui, &mut self.selected_tab, FilterTab::Completed, "Completed", self.counts.status_completed, &palette, icons::draw_folder);
+                    sidebar_row(ui, &mut self.selected_tab, FilterTab::Paused, "Paused", self.counts.status_paused, &palette, icons::draw_pause);
 
-                sidebar_row(ui, &mut self.selected_category, CategoryFilter::All, "All Categories", self.counts.cat_all, &palette, icons::draw_all);
-                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Video, "Video", self.counts.cat_video, &palette, icons::draw_video);
-                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Music, "Music", self.counts.cat_music, &palette, icons::draw_music);
-                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Documents, "Documents", self.counts.cat_documents, &palette, icons::draw_documents);
-                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Compressed, "Compressed", self.counts.cat_compressed, &palette, icons::draw_compressed);
-                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Programs, "Programs", self.counts.cat_programs, &palette, icons::draw_programs);
-                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Other, "Other", self.counts.cat_other, &palette, icons::draw_other);
+                    ui.add_space(10.0);
+                    ui.label(egui::RichText::new("Categories").size(11.5).color(palette.muted).strong());
+                    ui.add_space(4.0);
+
+                    sidebar_row(ui, &mut self.selected_category, CategoryFilter::All, "All Categories", self.counts.cat_all, &palette, icons::draw_all);
+                    sidebar_row(ui, &mut self.selected_category, CategoryFilter::Video, "Video", self.counts.cat_video, &palette, icons::draw_video);
+                    sidebar_row(ui, &mut self.selected_category, CategoryFilter::Music, "Music", self.counts.cat_music, &palette, icons::draw_music);
+                    sidebar_row(ui, &mut self.selected_category, CategoryFilter::Documents, "Documents", self.counts.cat_documents, &palette, icons::draw_documents);
+                    sidebar_row(ui, &mut self.selected_category, CategoryFilter::Compressed, "Compressed", self.counts.cat_compressed, &palette, icons::draw_compressed);
+                    sidebar_row(ui, &mut self.selected_category, CategoryFilter::Programs, "Programs", self.counts.cat_programs, &palette, icons::draw_programs);
+                    sidebar_row(ui, &mut self.selected_category, CategoryFilter::Other, "Other", self.counts.cat_other, &palette, icons::draw_other);
+                });
             });
 
         // Persist tab & category when changed
@@ -2437,8 +2851,8 @@ impl eframe::App for CosmoDownloaderApp {
             if filtered_downloads.is_empty() {
                 ui.vertical_centered(|ui| {
                     ui.add_space(80.0);
-                    let (sparkle_rect, _) = ui.allocate_exact_size(Vec2::new(36.0, 36.0), egui::Sense::hover());
-                    icons::draw_sparkle(ui.painter(), sparkle_rect, palette.muted);
+                    let (icon_rect, _) = ui.allocate_exact_size(Vec2::new(36.0, 36.0), egui::Sense::hover());
+                    icons::draw_down(ui.painter(), icon_rect, palette.muted);
                     ui.add_space(12.0);
                     ui.label(
                         egui::RichText::new("No downloads in this view")
@@ -2453,16 +2867,7 @@ impl eframe::App for CosmoDownloaderApp {
                             .color(palette.muted),
                     );
                     ui.add_space(16.0);
-                    if ui.add(
-                        egui::Button::new(
-                            egui::RichText::new("+ Add Download URL")
-                                .size(13.0)
-                                .color(palette.on_accent)
-                                .strong(),
-                        )
-                        .fill(palette.accent)
-                        .min_size(Vec2::new(160.0, 34.0)),
-                    ).clicked() {
+                    if primary_button(ui, &palette, "+ Add Download URL", Vec2::new(168.0, 34.0), true).clicked() {
                         self.show_add_dialog = true;
                     }
                 });
@@ -2664,7 +3069,7 @@ impl eframe::App for CosmoDownloaderApp {
                 .show(ctx, |ui| {
                     ui.set_width(420.0);
 
-                    ui.heading(egui::RichText::new("CosmoDownloader Preferences").size(15.0).color(Color32::from_rgb(0, 240, 255)));
+                    ui.heading(egui::RichText::new("CosmoDownloader Preferences").size(15.0).color(palette.accent));
                     ui.add_space(10.0);
 
                     ui.horizontal(|ui| {
@@ -2707,7 +3112,7 @@ impl eframe::App for CosmoDownloaderApp {
                     }
 
                     ui.add_space(16.0);
-                    if ui.add(egui::Button::new("Save & Close").min_size(Vec2::new(120.0, 30.0))).clicked() {
+                    if primary_button(ui, &palette, "Save & Close", Vec2::new(120.0, 30.0), true).clicked() {
                         self.show_settings_dialog = false;
 
                         let q = Arc::clone(&self.queue);
@@ -2730,6 +3135,66 @@ impl eframe::App for CosmoDownloaderApp {
                         });
                         set_autostart_enabled(autostart, start_min);
                     }
+                });
+        }
+
+        // About Modal Dialog
+        if self.show_about_dialog {
+            egui::Window::new("About Cosmo Downloader")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
+                .show(ctx, |ui| {
+                    ui.set_width(360.0);
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        ui.image((self.logo_texture.id(), Vec2::splat(36.0)));
+                        ui.add_space(10.0);
+                        ui.vertical(|ui| {
+                            ui.label(
+                                egui::RichText::new(format!("Cosmo Downloader v{}", env!("CARGO_PKG_VERSION")))
+                                    .size(15.0)
+                                    .strong()
+                                    .color(palette.text),
+                            );
+                            ui.label(
+                                egui::RichText::new("High-speed multi-segment download manager")
+                                    .size(12.0)
+                                    .color(palette.muted),
+                            );
+                        });
+                    });
+
+                    ui.add_space(10.0);
+                    ui.separator();
+                    ui.add_space(8.0);
+                    ui.label(egui::RichText::new("© 2026 Mahedi · Warp Engine").size(12.0).color(palette.muted));
+
+                    if let Some((ref new_ver, ref rel_url)) = self.update_available.clone() {
+                        ui.add_space(6.0);
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new(format!("Update available: v{}", new_ver))
+                                    .size(12.0)
+                                    .color(palette.accent),
+                            );
+                            if secondary_button(ui, self.theme_mode, &palette, "View release", Vec2::new(96.0, 24.0), true).clicked() {
+                                open_url_in_browser(rel_url);
+                            }
+                        });
+                    }
+
+                    ui.add_space(14.0);
+                    ui.horizontal(|ui| {
+                        if secondary_button(ui, self.theme_mode, &palette, "GitHub", Vec2::new(90.0, 28.0), true).clicked() {
+                            open_url_in_browser(GITHUB_REPO_URL);
+                        }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if primary_button(ui, &palette, "Close", Vec2::new(80.0, 28.0), true).clicked() {
+                                self.show_about_dialog = false;
+                            }
+                        });
+                    });
                 });
         }
     }
@@ -3045,8 +3510,9 @@ fn main() -> eframe::Result<()> {
     let start_minimized = std::env::args().any(|a| a == "--minimized" || a == "--daemon");
 
     let mut viewport = egui::ViewportBuilder::default()
-        .with_inner_size(if is_popup_arg { [560.0, 310.0] } else { [880.0, 560.0] })
-        .with_min_inner_size([540.0, 300.0])
+        .with_decorations(is_popup_arg)
+        .with_inner_size(if is_popup_arg { [560.0, 310.0] } else { [theme::MAIN_WIDTH, theme::MAIN_HEIGHT] })
+        .with_min_inner_size(if is_popup_arg { [540.0, 300.0] } else { [760.0, 520.0] })
         .with_title(if is_popup_arg { "Download File Info" } else { APP_TITLE })
         .with_icon(Arc::new(window_icon));
 
@@ -3075,4 +3541,19 @@ fn main() -> eframe::Result<()> {
         native_options,
         Box::new(|cc| Ok(Box::new(CosmoDownloaderApp::new(cc)))),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_newer_version, parse_semver};
+
+    #[test]
+    fn semver_ordering_handles_multi_digit_minor() {
+        assert_eq!(parse_semver("v1.13.0"), Some((1, 13, 0)));
+        assert_eq!(parse_semver("1.9.0"), Some((1, 9, 0)));
+        assert!(is_newer_version("1.12.0", "1.9.0"));
+        assert!(!is_newer_version("1.9.0", "1.12.0"));
+        assert!(is_newer_version("v1.14.0", "1.13.0"));
+        assert!(!is_newer_version("1.13.0", "1.13.0"));
+    }
 }

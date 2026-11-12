@@ -1,4 +1,4 @@
-# Cosmo Downloader v1.13.0
+# Cosmo Downloader
 
 A modern, high-speed multi-threaded download manager with a calm, professional steel design system, seamless browser integration, and intelligent video download capability.
 
@@ -22,7 +22,7 @@ Available for **Windows 10/11** and **Linux (AppImage)**.
 
 ### Windows Installation & In-Place Update
 
-1. Download and run **`CosmoDownloader-Setup-v1.13.exe`** (or build from source with `cargo build --release`).
+1. Download and run **`CosmoDownloader-Setup.exe`** from [GitHub Releases](https://github.com/Itsmahedi/Cosmo-Downlaoder/releases/latest) (or build from source with `cargo build --release`).
 2. Follow the setup wizard:
    - The installer automatically detects existing installations, stops running background processes without file-in-use errors, and upgrades in place.
    - User database and settings in `%LOCALAPPDATA%\CosmoDownloader` are preserved (with automatic `.bak` backups).
@@ -30,15 +30,15 @@ Available for **Windows 10/11** and **Linux (AppImage)**.
 
 #### Silent / Unattended Upgrades:
 ```cmd
-CosmoDownloader-Setup-v1.13.exe /VERYSILENT /NORESTART /SUPPRESSMSGBOXES
+CosmoDownloader-Setup.exe /VERYSILENT /NORESTART /SUPPRESSMSGBOXES
 ```
 
 ### Linux (AppImage)
 
 1. Download the standalone executable:
    ```bash
-   chmod +x dist/CosmoDownloader-1.13.0-x86_64.AppImage
-   ./dist/CosmoDownloader-1.13.0-x86_64.AppImage
+   chmod +x dist/CosmoDownloader-<version>-x86_64.AppImage
+   ./dist/CosmoDownloader-<version>-x86_64.AppImage
    ```
 2. To build the AppImage from source on Linux:
    ```bash
@@ -81,7 +81,12 @@ Extension source files are located in **`browser-extensions/`**:
   .\scripts\deploy_binaries.ps1 -Mode Release
 
   # Upgrade from a downloaded installer with SHA-256 verification
-  .\scripts\update-app.ps1 -InstallerUrl "https://.../CosmoDownloader-Setup-v1.12.exe" -ExpectedSha256 "<HASH>"
+  .\scripts\update-app.ps1 -InstallerUrl "https://github.com/Itsmahedi/Cosmo-Downlaoder/releases/latest/download/CosmoDownloader-Setup.exe" -ExpectedSha256 "<HASH>"
+  ```
+
+- **Sync Release Version Across App, Extensions, and Installer**:
+  ```powershell
+  .\scripts\set-version.ps1 -Version 1.13.0
   ```
 
 - **Synchronize Browser Extensions**:

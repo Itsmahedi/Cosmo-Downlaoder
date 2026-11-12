@@ -1,5 +1,5 @@
 /**
- * Cosmo Downloader v1.12 — Popup Script
+ * Cosmo Downloader — Popup Script
  */
 
 "use strict";
@@ -12,8 +12,14 @@ const interceptedCountEl = document.getElementById("interceptedCount");
 const urlInput = document.getElementById("urlInput");
 const addUrlBtn = document.getElementById("addUrlBtn");
 const urlFeedback = document.getElementById("urlFeedback");
+const appVersionEl = document.getElementById("appVersion");
+const versionMismatchEl = document.getElementById("versionMismatch");
 
 const runtime = typeof browser !== "undefined" ? browser : chrome;
+const extVersion = runtime?.runtime?.getManifest?.()?.version || "";
+if (appVersionEl && extVersion) {
+  appVersionEl.textContent = `v${extVersion}`;
+}
 
 /**
  * Theme support: read stored preference and apply
@@ -62,10 +68,27 @@ function updateStatus() {
 
     if (response.appRunning) {
       applyState("connected", "Connected to Cosmo Downloader");
+      if (versionMismatchEl) {
+        if (response.appVersion && extVersion && response.appVersion !== extVersion) {
+          versionMismatchEl.textContent = `Update available: app v${response.appVersion} / extension v${extVersion}`;
+          versionMismatchEl.hidden = false;
+        } else {
+          versionMismatchEl.textContent = "";
+          versionMismatchEl.hidden = true;
+        }
+      }
     } else if (response.hostInstalled) {
       applyState("amber", "Cosmo Downloader is closed");
+      if (versionMismatchEl) {
+        versionMismatchEl.textContent = "";
+        versionMismatchEl.hidden = true;
+      }
     } else {
       applyState("disconnected", "Disconnected");
+      if (versionMismatchEl) {
+        versionMismatchEl.textContent = "";
+        versionMismatchEl.hidden = true;
+      }
     }
   });
 }

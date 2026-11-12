@@ -398,8 +398,11 @@ impl BridgeServer {
                                 }
                             }
                         } else if req.starts_with("GET /health") {
-                            // Health endpoint: returns only {"status":"ok"} without leaking any sensitive data
-                            let json_resp = "{\"status\":\"ok\"}";
+                            // Health endpoint: returns status and running desktop app version
+                            let json_resp = format!(
+                                "{{\"status\":\"ok\",\"version\":\"{}\"}}",
+                                crate::version()
+                            );
                             let resp = format!(
                                 "HTTP/1.1 200 OK\r\n\
                                  {}Content-Type: application/json\r\n\

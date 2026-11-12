@@ -8,13 +8,14 @@
 </head>
 <body>
   <!-- Header: logo + name + version + connection dot -->
-  <div class="ph"><img src="icons/icon-48.png" alt=""><div><b>Cosmo Downloader</b><span class="meta">v1.13.0</span></div><i class="dot" id="statusDot"></i></div>
+  <div class="ph"><img src="icons/icon-48.png" alt=""><div><b>Cosmo Downloader</b><span class="meta" id="appVersion"></span></div><i class="dot" id="statusDot"></i></div>
 
   <!-- Connected/disconnected banner -->
   <div class="conn" id="statusBar">
     <svg class="i" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
     <span id="statusText">Connected to Cosmo Downloader</span>
   </div>
+  <div class="ver-mismatch" id="versionMismatch" hidden></div>
 
   <!-- Intercept toggle -->
   <div class="toggle">

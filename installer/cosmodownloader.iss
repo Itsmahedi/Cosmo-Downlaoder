@@ -2,7 +2,9 @@
 ; Cosmo Downloader Windows Setup
 
 #define MyAppName "Cosmo Downloader"
-#define MyAppVersion "v1.12"
+#ifndef MyAppVersion
+#define MyAppVersion "1.14.0"
+#endif
 #define MyAppPublisher "Mahedi"
 #define MyAppExeName "CosmoDownloader.exe"
 #define MyCliExeName "cosmodownloader-cli.exe"
@@ -11,17 +13,17 @@
 [Setup]
 AppId={{D37E7492-3580-4D3B-A924-E8251C9B71C8}
 AppName={#MyAppName}
-AppVersion=1.12.0
-AppVerName={#MyAppName} {#MyAppVersion}
-UninstallDisplayName={#MyAppName} {#MyAppVersion}
+AppVersion={#MyAppVersion}
+AppVerName={#MyAppName} v{#MyAppVersion}
+UninstallDisplayName={#MyAppName} v{#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-VersionInfoVersion=1.12.0.0
-VersionInfoTextVersion=1.12.0
+VersionInfoVersion={#MyAppVersion}.0
+VersionInfoTextVersion={#MyAppVersion}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=dist
-OutputBaseFilename=CosmoDownloader-Setup-v1.12
+OutputBaseFilename=CosmoDownloader-Setup
 SetupIconFile=icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -49,8 +51,8 @@ Source: "..\target\release\rustget.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\target\release\rustget-host.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\target\release\libunwind.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "icon.ico"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\yt-dlp.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\ffmpeg.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\yt-dlp.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "..\ffmpeg.exe"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 
 ; Native Messaging Manifests
 Source: "..\browser-extensions\Chrome-Edge-Brave-Opera\com.cosmodownloader.downloader.chrome.json"; DestDir: "{app}"; Flags: ignoreversion
@@ -226,10 +228,10 @@ begin
 
   if InstalledVersion <> '' then
   begin
-    if CompareVersionStrings(InstalledVersion, '1.12.0') > 0 then
+    if CompareVersionStrings(InstalledVersion, '{#MyAppVersion}') > 0 then
     begin
       if MsgBox('A newer version of Cosmo Downloader (' + InstalledVersion + ') is currently installed.' + #13#10 +
-                'Downgrading to version 1.12.0 may cause configuration incompatibility.' + #13#10 + #13#10 +
+                'Downgrading to version {#MyAppVersion} may cause configuration incompatibility.' + #13#10 + #13#10 +
                 'Do you wish to continue anyway?', mbConfirmation, MB_YESNO) <> IDYES then
       begin
         Abort();

@@ -1,5 +1,5 @@
 /**
- * ✦ Cosmo Downloader v1.11 — Service Worker (Manifest V3)
+ * Cosmo Downloader — Service Worker (Manifest V3)
  * 
  * Handles:
  *  1. Native messaging connection (com.cosmodownloader.downloader / com.rustget.downloader)
@@ -35,10 +35,12 @@ async function probeAppHealth() {
     clearTimeout(timeoutId);
     if (resp.ok) {
       const data = await resp.json();
-      return data && data.status === "ok";
+      if (data && data.status === "ok") {
+        return { running: true, version: data.version || null };
+      }
     }
   } catch (_) {}
-  return false;
+  return { running: false, version: null };
 }
 
 const INTERCEPT_EXTENSIONS = new Set([
@@ -280,13 +282,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.action) {
     case "getStatus":
       (async () => {
-        const appRunning = await probeAppHealth();
+        const health = await probeAppHealth();
+        const appRunning = health.running;
         if (!nativePort) {
           connectNativeHost();
         }
         const hostInstalled = isConnected && nativePort !== null;
         sendResponse({
           appRunning,
+          appVersion: health.version,
           hostInstalled,
           connected: appRunning,
           interceptEnabled,
@@ -320,8 +324,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         while (Date.now() - startTime < 5000) {
           await new Promise((r) => setTimeout(r, delay));
           delay = Math.min(delay * 1.4, 500);
-          const healthy = await probeAppHealth();
-          if (healthy) {
+          const health = await probeAppHealth();
+          if (health.running) {
             launched = true;
             break;
           }
@@ -379,5 +383,6 @@ chrome.storage.local.get("interceptEnabled", (result) => {
 });
 
 connectNativeHost();
-console.log("[Cosmo Downloader] Service worker active Ã¢â‚¬â€ v1.6.0");
+const extManifest = chrome.runtime?.getManifest?.();
+console.log(`[Cosmo Downloader] Service worker active — v${extManifest ? extManifest.version : 'unknown'}`);
 
