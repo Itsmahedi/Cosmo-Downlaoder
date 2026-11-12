@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -125,6 +126,7 @@ pub struct CosmoDownloaderApp {
     // Async event receivers
     pub event_rx: mpsc::Receiver<QueueEvent>,
     pub clipboard_rx: mpsc::Receiver<String>,
+    pub clipboard_enabled: Arc<AtomicBool>,
     pub browser_dl_rx: mpsc::Receiver<ExtensionDownloadRequest>,
     pub show_rx: mpsc::Receiver<()>,
     pub quit_rx: mpsc::Receiver<()>,
@@ -224,11 +226,6 @@ impl CosmoDownloaderApp {
                 ctx_wake_quit.request_repaint();
             });
         }
-
-        let (clip_tx, clip_rx) = mpsc::channel(32);
-        let clip_cancel = CancellationToken::new();
-        let clip_monitor = ClipboardMonitor::new(clip_cancel);
-        clip_monitor.start(clip_tx);
 
         let (autostart, reg_start_minimized) = platform::get_autostart_info();
         let (
@@ -361,6 +358,17 @@ impl CosmoDownloaderApp {
             })
         };
 
+        let (clip_tx, clip_rx) = mpsc::channel(32);
+        let clip_cancel = CancellationToken::new();
+        let clip_wake_ctx = cc.egui_ctx.clone();
+        let clip_monitor = ClipboardMonitor::new(clip_cancel)
+            .with_enabled(saved_clip)
+            .with_wake_callback(move || {
+                clip_wake_ctx.request_repaint();
+            });
+        let clipboard_enabled = clip_monitor.enabled_flag();
+        clip_monitor.start(clip_tx);
+
         let is_dark = match saved_theme.as_deref() {
             Some("light") => false,
             Some("dark") => true,
@@ -479,6 +487,7 @@ impl CosmoDownloaderApp {
 
             event_rx,
             clipboard_rx: clip_rx,
+            clipboard_enabled,
             browser_dl_rx: bridge_rx,
             show_rx,
             quit_rx,
@@ -910,7 +919,14 @@ impl eframe::App for CosmoDownloaderApp {
             }
         }
 
-        ctx.request_repaint_after(Duration::from_millis(100));
+        let has_active_work = !self.active_progress.is_empty()
+            || self.add_is_probing
+            || self.downloads.iter().any(|d| d.status == "downloading" || d.status == "queued");
+        if has_active_work {
+            ctx.request_repaint_after(Duration::from_millis(100));
+        } else {
+            ctx.request_repaint_after(Duration::from_millis(1000));
+        }
 
         let pal = theme::palette(self.is_dark);
 
@@ -1588,6 +1604,7 @@ impl eframe::App for CosmoDownloaderApp {
                 }
                 if m_act.toggle_clipboard {
                     self.setting_clipboard_monitor = !self.setting_clipboard_monitor;
+                    self.clipboard_enabled.store(self.setting_clipboard_monitor, Ordering::Relaxed);
                     let db = self.queue.db().clone();
                     let val = if self.setting_clipboard_monitor { "true" } else { "false" };
                     tokio::spawn(async move {
@@ -1952,6 +1969,7 @@ impl eframe::App for CosmoDownloaderApp {
                     if outcome.save_and_close {
                         self.show_settings_dialog = false;
                         self.add_connections = self.setting_default_connections;
+                        self.clipboard_enabled.store(self.setting_clipboard_monitor, Ordering::Relaxed);
                         let q = Arc::clone(&self.queue);
                         let db = self.queue.db().clone();
                         let max_c = self.setting_max_concurrent;

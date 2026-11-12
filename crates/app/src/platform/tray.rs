@@ -43,7 +43,8 @@ pub fn build_system_tray(
             let _ = tx.send("add".to_string());
             ctx_menu.request_repaint();
         } else if event.id == exit_id {
-            std::process::exit(0);
+            let _ = tx.send("exit".to_string());
+            ctx_menu.request_repaint();
         }
     }));
 
