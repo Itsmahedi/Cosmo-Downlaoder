@@ -217,20 +217,33 @@ impl Downloader {
             }
         }
 
-        // Try resuming from existing state
+        // Try resuming from existing state if remote metadata still matches
         let mut state = if self.options.resume && state_path.exists() {
             match DownloadState::load(&state_path).await {
-                Ok(Some(mut loaded)) if loaded.url == self.options.url => {
+                Ok(Some(mut loaded))
+                    if loaded.url == self.options.url && Self::remote_metadata_matches(&loaded, &info) =>
+                {
                     info!("Resuming existing download from {:?}", state_path);
-                    // Verify part file exists
-                    if !part_path.exists() {
-                        warn!("Part file missing for existing state, resetting progress");
+                    let part_len = fs::metadata(&part_path).await.map(|m| m.len()).unwrap_or(0);
+                    if !part_path.exists() || (loaded.downloaded_bytes() > 0 && part_len == 0) {
+                        warn!("Part file missing/empty for existing state, resetting progress");
                         for s in &mut loaded.segments {
                             s.downloaded = 0;
                             s.complete = false;
                         }
+                    } else if !loaded.accepts_ranges {
+                        // Single-stream progress trusts actual bytes flushed on disk
+                        if let Some(seg) = loaded.segments.first_mut() {
+                            seg.downloaded = part_len;
+                            seg.complete = false;
+                        }
                     }
                     loaded
+                }
+                Ok(Some(_)) => {
+                    warn!("Remote metadata changed (size/ETag/Last-Modified mismatch); restarting download cleanly");
+                    let _ = fs::remove_file(&part_path).await;
+                    self.init_new_state(&info, target_path.clone(), part_path.clone()).await?
                 }
                 _ => self.init_new_state(&info, target_path.clone(), part_path.clone()).await?,
             }
@@ -641,37 +654,84 @@ impl Downloader {
         Ok(())
     }
 
+    fn remote_metadata_matches(loaded: &DownloadState, info: &FileInfo) -> bool {
+        if let (Some(expected), Some(actual)) = (loaded.total_size, info.content_length) {
+            if expected != actual {
+                return false;
+            }
+        }
+        if let (Some(ref expected_etag), Some(ref actual_etag)) = (&loaded.etag, &info.etag) {
+            if expected_etag != actual_etag {
+                return false;
+            }
+        } else if let (Some(ref expected_lm), Some(ref actual_lm)) = (&loaded.last_modified, &info.last_modified) {
+            if expected_lm != actual_lm {
+                return false;
+            }
+        }
+        true
+    }
+
     /// Fallback download for single connections or servers without range support.
     async fn download_single_stream(
         &self,
         state: &mut DownloadState,
-        headers: HeaderMap,
+        mut headers: HeaderMap,
         progress_tx: &mpsc::Sender<DownloadProgress>,
     ) -> Result<()> {
+        let total_size = state.total_size;
+        let existing_len = if self.options.resume && state.accepts_ranges && state.part_path.exists() {
+            fs::metadata(&state.part_path).await.map(|m| m.len()).unwrap_or(0)
+        } else {
+            0
+        };
+
+        let mut requesting_range = false;
+        if existing_len > 0 && total_size.map_or(true, |t| existing_len < t) {
+            let range_header = format!("bytes={}-", existing_len);
+            debug!("Single-stream resume: requesting Range {}", range_header);
+            headers.insert(reqwest::header::RANGE, range_header.parse().unwrap());
+            requesting_range = true;
+        }
+
         let resp = self.client.get(&state.url).headers(headers).send().await?;
         let status = resp.status();
-        if !status.is_success() {
+        if !status.is_success() && status.as_u16() != 206 {
             return Err(DownloadError::ServerFailed {
                 status: status.as_u16(),
                 message: format!("GET request failed with status {}", status),
             });
         }
 
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(&state.part_path)
-            .await?;
+        let is_resumed_206 = requesting_range && status.as_u16() == 206;
+        let mut file = if is_resumed_206 {
+            OpenOptions::new()
+                .write(true)
+                .append(true)
+                .open(&state.part_path)
+                .await?
+        } else {
+            OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(&state.part_path)
+                .await?
+        };
 
         let mut stream = resp.bytes_stream();
         let mut tracker = SpeedTracker::default();
-        let mut downloaded: u64 = 0;
-        let total_size = state.total_size;
+        let mut downloaded: u64 = if is_resumed_206 { existing_len } else { 0 };
+        let mut last_state_save = std::time::Instant::now();
+        let mut last_notify = std::time::Instant::now();
 
         while let Some(chunk_res) = stream.next().await {
             if self.cancel_token.is_cancelled() {
                 file.flush().await?;
+                if !state.segments.is_empty() {
+                    state.segments[0].downloaded = downloaded;
+                }
+                let _ = state.save_atomic().await;
                 return Ok(());
             }
 
@@ -687,25 +747,49 @@ impl Downloader {
             downloaded += chunk_len as u64;
 
             tracker.record(downloaded);
-            let speed = tracker.speed_bps();
-            let eta = total_size.and_then(|t| tracker.eta_seconds(t.saturating_sub(downloaded)));
-
             if !state.segments.is_empty() {
                 state.segments[0].downloaded = downloaded;
             }
 
-            let _ = progress_tx.send(DownloadProgress {
-                status: DownloadStatus::Downloading,
-                total_bytes: total_size,
-                downloaded_bytes: downloaded,
-                speed_bps: speed,
-                eta_seconds: eta,
-                segments: state.segments.clone(),
-                file_path: state.target_path.clone(),
-            }).await;
+            if last_state_save.elapsed() >= Duration::from_millis(500) {
+                let _ = state.save_atomic().await;
+                last_state_save = std::time::Instant::now();
+            }
+
+            if last_notify.elapsed() >= Duration::from_millis(100) {
+                let speed = tracker.speed_bps();
+                let eta = total_size.and_then(|t| tracker.eta_seconds(t.saturating_sub(downloaded)));
+                let _ = progress_tx.send(DownloadProgress {
+                    status: DownloadStatus::Downloading,
+                    total_bytes: total_size,
+                    downloaded_bytes: downloaded,
+                    speed_bps: speed,
+                    eta_seconds: eta,
+                    segments: state.segments.clone(),
+                    file_path: state.target_path.clone(),
+                }).await;
+                last_notify = std::time::Instant::now();
+            }
         }
 
         file.flush().await?;
+        if !state.segments.is_empty() {
+            state.segments[0].downloaded = downloaded;
+        }
+
+        if let Some(expected) = total_size {
+            if downloaded < expected && !self.cancel_token.is_cancelled() {
+                let _ = state.save_atomic().await;
+                return Err(DownloadError::Io(std::io::Error::new(
+                    std::io::ErrorKind::UnexpectedEof,
+                    format!(
+                        "Single-stream download ended prematurely: {} of {} bytes",
+                        downloaded, expected
+                    ),
+                )));
+            }
+        }
+
         if !state.segments.is_empty() {
             state.segments[0].complete = true;
         }
