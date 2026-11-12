@@ -2,7 +2,8 @@
 ; Cosmo Downloader Windows Setup
 
 #define MyAppName "Cosmo Downloader"
-#define MyAppVersion "v1.1"
+#define MyAppVersion "1.1.0"
+#define MyAppShortVer "v1.1"
 #define MyAppPublisher "Mahedi"
 #define MyAppExeName "CosmoDownloader.exe"
 #define MyCliExeName "cosmodownloader-cli.exe"
@@ -11,23 +12,25 @@
 [Setup]
 AppId={{D37E7492-3580-4D3B-A924-E8251C9B71C8}
 AppName={#MyAppName}
-AppVersion=1.1.0
-AppVerName={#MyAppName} {#MyAppVersion}
-UninstallDisplayName={#MyAppName} {#MyAppVersion}
+AppVersion={#MyAppVersion}
+AppVerName={#MyAppName} {#MyAppShortVer}
+UninstallDisplayName={#MyAppName}
+UninstallDisplayIcon={app}\icon.ico
 AppPublisher={#MyAppPublisher}
 VersionInfoVersion=1.1.0.0
-VersionInfoTextVersion=1.1.0
+VersionInfoTextVersion={#MyAppVersion}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=dist
-OutputBaseFilename=CosmoDownloader-Setup-v1.1
+OutputBaseFilename=CosmoDownloader-Setup-{#MyAppShortVer}
 SetupIconFile=icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
 CloseApplications=yes
+CloseApplicationsFilter=*.exe,*.dll
 RestartApplications=no
 UsePreviousAppDir=yes
 DisableDirPage=auto
@@ -39,26 +42,23 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: checkedonce
 Name: "startupicon"; Description: "Start Cosmo Downloader automatically with Windows"; GroupDescription: "Windows Integration:"
-Name: "registerbrowsers"; Description: "Register browser extension bridge (Chrome, Brave, Edge & Firefox)"; GroupDescription: "Browser Integration:"
+Name: "registerbrowsers"; Description: "Register browser extension bridge (Chrome, Brave, Edge, Opera & Firefox)"; GroupDescription: "Browser Integration:"
 
 [Files]
-Source: "..\target\release\CosmoDownloader.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\target\release\cosmodownloader-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\target\release\cosmodownloader-host.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\target\release\rustget.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\target\release\rustget-host.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\target\release\libunwind.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
+Source: "..\target\release\CosmoDownloader.exe"; DestDir: "{app}"; Flags: ignoreversion restartreplace
+Source: "..\target\release\cosmodownloader-cli.exe"; DestDir: "{app}"; Flags: ignoreversion restartreplace
+Source: "..\target\release\cosmodownloader-host.exe"; DestDir: "{app}"; Flags: ignoreversion restartreplace
+Source: "..\target\release\rustget.exe"; DestDir: "{app}"; Flags: ignoreversion restartreplace
+Source: "..\target\release\rustget-host.exe"; DestDir: "{app}"; Flags: ignoreversion restartreplace
+Source: "..\target\release\libunwind.dll"; DestDir: "{app}"; Flags: ignoreversion restartreplace skipifsourcedoesntexist
 Source: "icon.ico"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\yt-dlp.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\ffmpeg.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\yt-dlp.exe"; DestDir: "{app}"; Flags: ignoreversion restartreplace
+Source: "..\ffmpeg.exe"; DestDir: "{app}"; Flags: ignoreversion restartreplace
 
 ; Native Messaging Manifests
 Source: "..\browser-extensions\Chrome-Edge-Brave-Opera\com.cosmodownloader.downloader.chrome.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\browser-extensions\Chrome-Edge-Brave-Opera\com.cosmodownloader.downloader.edge.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\browser-extensions\Chrome-Edge-Brave-Opera\com.cosmodownloader.downloader.firefox.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\browser-extensions\Chrome-Edge-Brave-Opera\com.rustget.downloader.chrome.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\browser-extensions\Chrome-Edge-Brave-Opera\com.rustget.downloader.edge.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\browser-extensions\Chrome-Edge-Brave-Opera\com.rustget.downloader.firefox.json"; DestDir: "{app}"; Flags: ignoreversion
 
 ; Extension folders
 Source: "..\browser-extensions\Chrome-Edge-Brave-Opera\*"; DestDir: "{app}\Browser-Extensions\Chrome-Edge-Brave-Opera"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -71,37 +71,99 @@ Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\icon.ico"; Tasks: desktopicon
 
 [Registry]
+; Remove legacy duplicate Run value from earlier releases
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "CosmoDownloader"; Flags: deletevalue uninsdeletevalue
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Cosmo Downloader"; ValueData: """{app}\{#MyAppExeName}"" --minimized"; Tasks: startupicon; Flags: uninsdeletevalue
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "CosmoDownloader"; ValueData: """{app}\{#MyAppExeName}"" --minimized"; Tasks: startupicon; Flags: uninsdeletevalue
+
+; Browser Native Messaging Hosts
 Root: HKCU; Subkey: "Software\Google\Chrome\NativeMessagingHosts\com.cosmodownloader.downloader"; ValueType: string; ValueData: "{app}\com.cosmodownloader.downloader.chrome.json"; Tasks: registerbrowsers; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\BraveSoftware\Brave-Browser\NativeMessagingHosts\com.cosmodownloader.downloader"; ValueType: string; ValueData: "{app}\com.cosmodownloader.downloader.chrome.json"; Tasks: registerbrowsers; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Chromium\NativeMessagingHosts\com.cosmodownloader.downloader"; ValueType: string; ValueData: "{app}\com.cosmodownloader.downloader.chrome.json"; Tasks: registerbrowsers; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Opera Software\Opera Stable\NativeMessagingHosts\com.cosmodownloader.downloader"; ValueType: string; ValueData: "{app}\com.cosmodownloader.downloader.chrome.json"; Tasks: registerbrowsers; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Microsoft\Edge\NativeMessagingHosts\com.cosmodownloader.downloader"; ValueType: string; ValueData: "{app}\com.cosmodownloader.downloader.edge.json"; Tasks: registerbrowsers; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Mozilla\NativeMessagingHosts\com.cosmodownloader.downloader"; ValueType: string; ValueData: "{app}\com.cosmodownloader.downloader.firefox.json"; Tasks: registerbrowsers; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Google\Chrome\NativeMessagingHosts\com.rustget.downloader"; ValueType: string; ValueData: "{app}\com.rustget.downloader.chrome.json"; Tasks: registerbrowsers; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Microsoft\Edge\NativeMessagingHosts\com.rustget.downloader"; ValueType: string; ValueData: "{app}\com.rustget.downloader.edge.json"; Tasks: registerbrowsers; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Mozilla\NativeMessagingHosts\com.rustget.downloader"; ValueType: string; ValueData: "{app}\com.rustget.downloader.firefox.json"; Tasks: registerbrowsers; Flags: uninsdeletekey
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
+[UninstallRun]
+Filename: "{app}\{#MyHostExeName}"; Parameters: "--unregister"; Flags: runhidden
+
 [Code]
-// Helper function to check if a file is locked by attempting to rename it temporarily
-function IsFileLocked(const FileName: String): Boolean;
 var
-  TempName: String;
+  WasAppRunningBeforeInstall: Boolean;
+
+function IsProcessImageRunning(const ImageList: String): Boolean;
+var
+  ResultCode: Integer;
 begin
   Result := False;
-  if not FileExists(FileName) then Exit;
+  if Exec('cmd.exe', '/C tasklist /FO CSV /NH | findstr /I "' + ImageList + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    Result := (ResultCode = 0);
+  end;
+end;
 
-  TempName := FileName + '.cosmo_lockcheck';
-  if RenameFile(FileName, TempName) then
+function IsCosmoGuiRunning(): Boolean;
+begin
+  Result := CheckForMutexes('CosmoDownloader_v1_0_SingleInstance_Mutex') or
+            IsProcessImageRunning('CosmoDownloader.exe rustget-gui.exe');
+end;
+
+function IsAnyCosmoProcessRunning(): Boolean;
+begin
+  Result := CheckForMutexes('CosmoDownloader_v1_0_SingleInstance_Mutex') or
+            IsProcessImageRunning('CosmoDownloader.exe cosmodownloader-host.exe cosmodownloader-cli.exe rustget-gui.exe rustget-host.exe rustget.exe');
+end;
+
+// Ask running Cosmo Downloader processes to save state and exit cleanly, with force-kill fallback
+function CloseRunningCosmoProcesses(const IsUninstall: Boolean): Boolean;
+var
+  AppDir, MainExe: String;
+  ResultCode, WaitedMs: Integer;
+  PromptMsg: String;
+begin
+  Result := True;
+  if not IsAnyCosmoProcessRunning() then Exit;
+
+  if (not IsUninstall and not WizardSilent()) or (IsUninstall and not UninstallSilent()) then
   begin
-    // Renamed successfully, so file was NOT locked. Rename it back.
-    RenameFile(TempName, FileName);
-    Result := False;
-  end
-  else
+    if IsUninstall then
+      PromptMsg := 'Cosmo Downloader is running. It will be closed to uninstall.'
+    else
+      PromptMsg := 'Cosmo Downloader is running. It will be closed to continue.';
+
+    if MsgBox(PromptMsg, mbConfirmation, MB_OKCANCEL) <> IDOK then
+    begin
+      Result := False;
+      Exit;
+    end;
+  end;
+
+  AppDir := ExpandConstant('{app}');
+  MainExe := AppDir + '\{#MyAppExeName}';
+
+  // 1. Ask Cosmo Downloader to save queue/active transfers and exit gracefully
+  if FileExists(MainExe) then
   begin
-    Result := True;
+    Exec(MainExe, '--quit', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end;
+
+  // 2. Wait up to 5 seconds for clean shutdown
+  WaitedMs := 0;
+  while IsCosmoGuiRunning() and (WaitedMs < 5000) do
+  begin
+    Sleep(250);
+    WaitedMs := WaitedMs + 250;
+  end;
+
+  // 3. Terminate any remaining GUI, native host, or CLI helper processes
+  if IsAnyCosmoProcessRunning() then
+  begin
+    Exec('taskkill.exe',
+         '/F /T /IM {#MyAppExeName} /IM {#MyHostExeName} /IM {#MyCliExeName} /IM rustget-gui.exe /IM rustget-host.exe /IM rustget.exe',
+         '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(800);
   end;
 end;
 
@@ -157,27 +219,24 @@ begin
   end;
 end;
 
-// Back up user database safely before file installation begins
+// Back up user SQLite database safely before upgrade
 procedure BackupUserDatabase();
 var
-  LocalAppData, DbPath, BakPath: String;
+  LocalAppData, DbPath: String;
 begin
   LocalAppData := GetEnv('LOCALAPPDATA');
   if LocalAppData = '' then Exit;
 
+  DbPath := LocalAppData + '\CosmoDownloader\CosmoDownloader\data\cosmodownloader.db';
+  if FileExists(DbPath) then
+  begin
+    FileCopy(DbPath, DbPath + '.bak', False);
+  end;
+
   DbPath := LocalAppData + '\CosmoDownloader\cosmodownloader.db';
   if FileExists(DbPath) then
   begin
-    BakPath := DbPath + '.bak';
-    FileCopy(DbPath, BakPath, False);
-  end;
-
-  // Also check nested project dir path
-  DbPath := LocalAppData + '\CosmoDownloader\CosmoDownloader\cosmodownloader.db';
-  if FileExists(DbPath) then
-  begin
-    BakPath := DbPath + '.bak';
-    FileCopy(DbPath, BakPath, False);
+    FileCopy(DbPath, DbPath + '.bak', False);
   end;
 end;
 
@@ -197,16 +256,14 @@ begin
 
   if UninstString <> '' then
   begin
-    // Run legacy uninstaller silently first
     if Exec(RemoveQuotes(UninstString), '/VERYSILENT /NORESTART /SUPPRESSMSGBOXES', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
     begin
-      Sleep(1000);
+      Sleep(800);
     end
     else
     begin
-      // Kill rustget binaries as a last resort if silent uninstall execution failed
       Exec('taskkill.exe', '/F /T /IM rustget.exe /IM rustget-host.exe /IM rustget-gui.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-      Sleep(1000);
+      Sleep(800);
     end;
   end;
 end;
@@ -226,49 +283,86 @@ begin
 
   if InstalledVersion <> '' then
   begin
-    if CompareVersionStrings(InstalledVersion, '1.1.0') > 0 then
+    if CompareVersionStrings(InstalledVersion, '{#MyAppVersion}') > 0 then
     begin
-      if MsgBox('A newer version of Cosmo Downloader (' + InstalledVersion + ') is currently installed.' + #13#10 +
-                'Downgrading to version 1.1.0 may cause configuration incompatibility.' + #13#10 + #13#10 +
-                'Do you wish to continue anyway?', mbConfirmation, MB_YESNO) <> IDYES then
+      if not WizardSilent() then
       begin
-        Abort();
+        if MsgBox('A newer version of Cosmo Downloader (' + InstalledVersion + ') is currently installed.' + #13#10 +
+                  'Downgrading to version {#MyAppVersion} may cause configuration incompatibility.' + #13#10 + #13#10 +
+                  'Do you wish to continue anyway?', mbConfirmation, MB_YESNO) <> IDYES then
+        begin
+          Abort();
+        end;
       end;
     end;
   end;
 end;
 
+function InitializeSetup(): Boolean;
+begin
+  WasAppRunningBeforeInstall := IsCosmoGuiRunning();
+  Result := True;
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
-var
-  AppDir, MainExe, HostExe, CliExe: String;
-  ResultCode: Integer;
 begin
   Result := '';
+  if not WasAppRunningBeforeInstall then
+    WasAppRunningBeforeInstall := IsCosmoGuiRunning();
 
-  // 1. Check for downgrade and handle legacy RustGet
   CheckDowngrade();
   HandleLegacyRustGet();
-
-  // 2. Safely back up user database
   BackupUserDatabase();
 
-  // 3. Check if target binaries in {app} are locked
-  AppDir := ExpandConstant('{app}');
-  MainExe := AppDir + '\{#MyAppExeName}';
-  HostExe := AppDir + '\{#MyHostExeName}';
-  CliExe := AppDir + '\{#MyCliExeName}';
-
-  if IsFileLocked(MainExe) or IsFileLocked(HostExe) or IsFileLocked(CliExe) then
+  if not CloseRunningCosmoProcesses(False) then
   begin
-    // Restart Manager didn't release them (e.g. background host without top window), fallback to taskkill
-    Exec('taskkill.exe', '/F /T /IM {#MyAppExeName} /IM {#MyHostExeName} /IM {#MyCliExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Sleep(1500);
+    Result := 'Installation canceled because Cosmo Downloader must be closed to continue.';
+    Exit;
+  end;
+end;
 
-    // Verify files are now unlocked
-    if IsFileLocked(MainExe) or IsFileLocked(HostExe) or IsFileLocked(CliExe) then
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+  MainExe: String;
+begin
+  if CurStep = ssPostInstall then
+  begin
+    // Under silent/verysilent updates, automatically relaunch if the app was running prior to update.
+    if WizardSilent() and WasAppRunningBeforeInstall then
     begin
-      Result := 'Cosmo Downloader executable files are currently locked by a running process. Please close Cosmo Downloader from the system tray and close any open browser tabs using the extension, then try running Setup again.';
-      Exit;
+      MainExe := ExpandConstant('{app}\{#MyAppExeName}');
+      if FileExists(MainExe) then
+      begin
+        Exec(MainExe, '', '', SW_SHOW, ewNoWait, ResultCode);
+      end;
+    end;
+  end;
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  Result := CloseRunningCosmoProcesses(True);
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  LocalAppData, AppDataDir: String;
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    LocalAppData := GetEnv('LOCALAPPDATA');
+    if LocalAppData <> '' then
+    begin
+      AppDataDir := LocalAppData + '\CosmoDownloader';
+      if DirExists(AppDataDir) and not UninstallSilent() then
+      begin
+        if MsgBox('Do you want to remove Cosmo Downloader settings and download history database?' + #13#10 +
+                  '(Your downloaded files will NOT be deleted.)', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+        begin
+          DelTree(AppDataDir, True, True, True);
+        end;
+      end;
     end;
   end;
 end;
