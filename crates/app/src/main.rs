@@ -132,114 +132,203 @@ mod icons {
     use eframe::egui::{pos2, Color32, Painter, Rect, Rounding, Stroke};
 
     pub fn draw_play(painter: &Painter, rect: Rect, color: Color32) {
-        let p1 = pos2(rect.left() + rect.width() * 0.25, rect.top() + rect.height() * 0.15);
-        let p2 = pos2(rect.left() + rect.width() * 0.85, rect.top() + rect.height() * 0.5);
-        let p3 = pos2(rect.left() + rect.width() * 0.25, rect.top() + rect.height() * 0.85);
-        painter.add(egui::epaint::PathShape::convex_polygon(vec![p1, p2, p3], color, Stroke::NONE));
+        let stroke = Stroke::new(1.5_f32, color);
+        let p1 = pos2(rect.left() + rect.width() * 0.30, rect.top() + rect.height() * 0.20);
+        let p2 = pos2(rect.left() + rect.width() * 0.80, rect.top() + rect.height() * 0.50);
+        let p3 = pos2(rect.left() + rect.width() * 0.30, rect.top() + rect.height() * 0.80);
+        painter.add(egui::epaint::PathShape::closed_line(vec![p1, p2, p3], stroke));
     }
 
     pub fn draw_pause(painter: &Painter, rect: Rect, color: Color32) {
-        let bar_w = (rect.width() * 0.22).max(2.0);
-        let bar_h = rect.height() * 0.7;
-        let y = rect.top() + rect.height() * 0.15;
-        let r1 = Rect::from_min_size(pos2(rect.left() + rect.width() * 0.2, y), eframe::egui::vec2(bar_w, bar_h));
-        let r2 = Rect::from_min_size(pos2(rect.right() - rect.width() * 0.2 - bar_w, y), eframe::egui::vec2(bar_w, bar_h));
-        painter.rect_filled(r1, Rounding::same(1.5), color);
-        painter.rect_filled(r2, Rounding::same(1.5), color);
+        let stroke = Stroke::new(1.7_f32, color);
+        let top = rect.top() + rect.height() * 0.22;
+        let bot = rect.bottom() - rect.height() * 0.22;
+        let x1 = rect.left() + rect.width() * 0.36;
+        let x2 = rect.left() + rect.width() * 0.64;
+        painter.line_segment([pos2(x1, top), pos2(x1, bot)], stroke);
+        painter.line_segment([pos2(x2, top), pos2(x2, bot)], stroke);
     }
 
-    pub fn draw_folder(painter: &Painter, rect: Rect, color: Color32) {
-        let tab_w = rect.width() * 0.45;
-        let tab_h = rect.height() * 0.25;
-        painter.rect_filled(Rect::from_min_size(pos2(rect.left() + 1.0, rect.top() + 2.0), eframe::egui::vec2(tab_w, tab_h)), Rounding::same(1.5), color);
-        let body_rect = Rect::from_min_max(pos2(rect.left() + 1.0, rect.top() + rect.height() * 0.22), pos2(rect.right() - 1.0, rect.bottom() - 2.0));
-        painter.rect_filled(body_rect, Rounding::same(2.0), color);
+    pub fn draw_plus(painter: &Painter, rect: Rect, color: Color32) {
+        let stroke = Stroke::new(1.6_f32, color);
+        let c = rect.center();
+        let half = rect.width() * 0.30;
+        painter.line_segment([pos2(c.x, c.y - half), pos2(c.x, c.y + half)], stroke);
+        painter.line_segment([pos2(c.x - half, c.y), pos2(c.x + half, c.y)], stroke);
     }
 
-    pub fn draw_video(painter: &Painter, rect: Rect, color: Color32) {
-        painter.rect_stroke(rect.shrink(1.0), Rounding::same(3.0), Stroke::new(1.2_f32, color));
-        let p1 = pos2(rect.left() + rect.width() * 0.38, rect.top() + rect.height() * 0.28);
-        let p2 = pos2(rect.left() + rect.width() * 0.72, rect.top() + rect.height() * 0.5);
-        let p3 = pos2(rect.left() + rect.width() * 0.38, rect.top() + rect.height() * 0.72);
-        painter.add(egui::epaint::PathShape::convex_polygon(vec![p1, p2, p3], color, Stroke::NONE));
+    pub fn draw_trash(painter: &Painter, rect: Rect, color: Color32) {
+        let stroke = Stroke::new(1.5_f32, color);
+        let l = rect.left() + rect.width() * 0.18;
+        let r = rect.right() - rect.width() * 0.18;
+        let lid_y = rect.top() + rect.height() * 0.28;
+        let top_y = rect.top() + rect.height() * 0.16;
+        let bot_y = rect.bottom() - rect.height() * 0.16;
+        painter.line_segment([pos2(l, lid_y), pos2(r, lid_y)], stroke);
+        let h_l = rect.left() + rect.width() * 0.38;
+        let h_r = rect.right() - rect.width() * 0.38;
+        painter.line_segment([pos2(h_l, lid_y), pos2(h_l, top_y)], stroke);
+        painter.line_segment([pos2(h_l, top_y), pos2(h_r, top_y)], stroke);
+        painter.line_segment([pos2(h_r, top_y), pos2(h_r, lid_y)], stroke);
+        let body_l = rect.left() + rect.width() * 0.26;
+        let body_r = rect.right() - rect.width() * 0.26;
+        let b_l = rect.left() + rect.width() * 0.31;
+        let b_r = rect.right() - rect.width() * 0.31;
+        painter.line_segment([pos2(body_l, lid_y), pos2(b_l, bot_y)], stroke);
+        painter.line_segment([pos2(b_l, bot_y), pos2(b_r, bot_y)], stroke);
+        painter.line_segment([pos2(b_r, bot_y), pos2(body_r, lid_y)], stroke);
+        let mid_top = rect.top() + rect.height() * 0.44;
+        let mid_bot = rect.top() + rect.height() * 0.68;
+        painter.line_segment([pos2(rect.left() + rect.width() * 0.43, mid_top), pos2(rect.left() + rect.width() * 0.43, mid_bot)], stroke);
+        painter.line_segment([pos2(rect.left() + rect.width() * 0.57, mid_top), pos2(rect.left() + rect.width() * 0.57, mid_bot)], stroke);
     }
 
-    pub fn draw_music(painter: &Painter, rect: Rect, color: Color32) {
-        let r = (rect.width() * 0.15).max(1.8);
-        let head1 = pos2(rect.left() + rect.width() * 0.3, rect.bottom() - rect.height() * 0.25);
-        let head2 = pos2(rect.right() - rect.width() * 0.3, rect.bottom() - rect.height() * 0.35);
-        painter.circle_filled(head1, r, color);
-        painter.circle_filled(head2, r, color);
-        let stem1_top = pos2(head1.x + r - 0.5, rect.top() + rect.height() * 0.2);
-        let stem2_top = pos2(head2.x + r - 0.5, rect.top() + rect.height() * 0.1);
-        painter.line_segment([pos2(head1.x + r - 0.5, head1.y), stem1_top], Stroke::new(1.4_f32, color));
-        painter.line_segment([pos2(head2.x + r - 0.5, head2.y), stem2_top], Stroke::new(1.4_f32, color));
-        painter.line_segment([stem1_top, stem2_top], Stroke::new(2.0_f32, color));
+    pub fn draw_sliders(painter: &Painter, rect: Rect, color: Color32) {
+        let stroke = Stroke::new(1.5_f32, color);
+        let l = rect.left() + rect.width() * 0.15;
+        let r = rect.right() - rect.width() * 0.15;
+        let y1 = rect.top() + rect.height() * 0.30;
+        let y2 = rect.top() + rect.height() * 0.70;
+        let kx1 = rect.left() + rect.width() * 0.66;
+        let kx2 = rect.left() + rect.width() * 0.34;
+        let rad = (rect.width() * 0.10).max(2.0);
+        painter.line_segment([pos2(l, y1), pos2(kx1 - rad, y1)], stroke);
+        painter.line_segment([pos2(kx1 + rad, y1), pos2(r, y1)], stroke);
+        painter.circle_stroke(pos2(kx1, y1), rad, stroke);
+        painter.line_segment([pos2(l, y2), pos2(kx2 - rad, y2)], stroke);
+        painter.line_segment([pos2(kx2 + rad, y2), pos2(r, y2)], stroke);
+        painter.circle_stroke(pos2(kx2, y2), rad, stroke);
     }
 
-    pub fn draw_documents(painter: &Painter, rect: Rect, color: Color32) {
-        let doc_rect = Rect::from_min_max(pos2(rect.left() + 2.5, rect.top() + 1.0), pos2(rect.right() - 2.5, rect.bottom() - 1.0));
-        painter.rect_stroke(doc_rect, Rounding::same(1.5), Stroke::new(1.2_f32, color));
-        let line_pad = 4.0;
-        let y1 = doc_rect.top() + doc_rect.height() * 0.32;
-        let y2 = doc_rect.top() + doc_rect.height() * 0.52;
-        let y3 = doc_rect.top() + doc_rect.height() * 0.72;
-        painter.line_segment([pos2(doc_rect.left() + line_pad, y1), pos2(doc_rect.right() - line_pad, y1)], Stroke::new(1.0_f32, color));
-        painter.line_segment([pos2(doc_rect.left() + line_pad, y2), pos2(doc_rect.right() - line_pad, y2)], Stroke::new(1.0_f32, color));
-        painter.line_segment([pos2(doc_rect.left() + line_pad, y3), pos2(doc_rect.left() + doc_rect.width() * 0.55, y3)], Stroke::new(1.0_f32, color));
+    pub fn draw_moon(painter: &Painter, rect: Rect, color: Color32) {
+        let stroke = Stroke::new(1.4_f32, color);
+        let c = rect.center();
+        let r = rect.width() * 0.34;
+        let mut pts = Vec::new();
+        for i in 0..=16 {
+            let a = std::f32::consts::PI * 0.45 + (i as f32 / 16.0) * std::f32::consts::PI * 1.35;
+            pts.push(pos2(c.x + r * a.cos(), c.y + r * a.sin()));
+        }
+        let inner_r = r * 0.72;
+        let ic = pos2(c.x + r * 0.38, c.y - r * 0.38);
+        for i in (0..=10).rev() {
+            let a = std::f32::consts::PI * 0.55 + (i as f32 / 10.0) * std::f32::consts::PI * 0.95;
+            pts.push(pos2(ic.x + inner_r * a.cos(), ic.y + inner_r * a.sin()));
+        }
+        painter.add(egui::epaint::PathShape::closed_line(pts, stroke));
     }
 
-    pub fn draw_compressed(painter: &Painter, rect: Rect, color: Color32) {
-        let box_rect = Rect::from_min_max(pos2(rect.left() + 2.0, rect.top() + 2.0), pos2(rect.right() - 2.0, rect.bottom() - 2.0));
-        painter.rect_stroke(box_rect, Rounding::same(2.0), Stroke::new(1.2_f32, color));
-        let mid_x = box_rect.center().x;
-        painter.line_segment([pos2(mid_x, box_rect.top()), pos2(mid_x, box_rect.bottom())], Stroke::new(1.0_f32, color));
-        for y_pct in [0.25, 0.45, 0.65] {
-            let y = box_rect.top() + box_rect.height() * y_pct;
-            painter.line_segment([pos2(mid_x - 2.0, y), pos2(mid_x + 2.0, y)], Stroke::new(1.2_f32, color));
+    pub fn draw_sun(painter: &Painter, rect: Rect, color: Color32) {
+        let stroke = Stroke::new(1.4_f32, color);
+        let c = rect.center();
+        painter.circle_stroke(c, rect.width() * 0.18, stroke);
+        let r1 = rect.width() * 0.28;
+        let r2 = rect.width() * 0.39;
+        for i in 0..8 {
+            let a = (i as f32) * std::f32::consts::FRAC_PI_4;
+            painter.line_segment(
+                [pos2(c.x + r1 * a.cos(), c.y + r1 * a.sin()), pos2(c.x + r2 * a.cos(), c.y + r2 * a.sin())],
+                stroke,
+            );
         }
     }
 
+    pub fn draw_video(painter: &Painter, rect: Rect, color: Color32) {
+        let box_rect = Rect::from_min_max(
+            pos2(rect.left() + rect.width() * 0.12, rect.top() + rect.height() * 0.18),
+            pos2(rect.right() - rect.width() * 0.12, rect.bottom() - rect.height() * 0.18),
+        );
+        painter.rect_stroke(box_rect, Rounding::same(2.5), Stroke::new(1.4_f32, color));
+        let p1 = pos2(rect.left() + rect.width() * 0.42, rect.top() + rect.height() * 0.36);
+        let p2 = pos2(rect.left() + rect.width() * 0.66, rect.top() + rect.height() * 0.50);
+        let p3 = pos2(rect.left() + rect.width() * 0.42, rect.top() + rect.height() * 0.64);
+        painter.add(egui::epaint::PathShape::closed_line(vec![p1, p2, p3], Stroke::new(1.3_f32, color)));
+    }
+
+    pub fn draw_music(painter: &Painter, rect: Rect, color: Color32) {
+        let r = (rect.width() * 0.11).max(1.8);
+        let stroke = Stroke::new(1.4_f32, color);
+        let head1 = pos2(rect.left() + rect.width() * 0.29, rect.bottom() - rect.height() * 0.24);
+        let head2 = pos2(rect.right() - rect.width() * 0.29, rect.bottom() - rect.height() * 0.32);
+        painter.circle_stroke(head1, r, stroke);
+        painter.circle_stroke(head2, r, stroke);
+        let stem1_top = pos2(head1.x + r, rect.top() + rect.height() * 0.22);
+        let stem2_top = pos2(head2.x + r, rect.top() + rect.height() * 0.14);
+        painter.line_segment([pos2(head1.x + r, head1.y), stem1_top], stroke);
+        painter.line_segment([pos2(head2.x + r, head2.y), stem2_top], stroke);
+        painter.line_segment([stem1_top, stem2_top], stroke);
+    }
+
+    pub fn draw_documents(painter: &Painter, rect: Rect, color: Color32) {
+        let stroke = Stroke::new(1.4_f32, color);
+        let l = rect.left() + rect.width() * 0.22;
+        let r = rect.right() - rect.width() * 0.22;
+        let t = rect.top() + rect.height() * 0.12;
+        let b = rect.bottom() - rect.height() * 0.12;
+        let fold = rect.width() * 0.20;
+        painter.add(egui::epaint::PathShape::closed_line(
+            vec![pos2(l, t), pos2(r - fold, t), pos2(r, t + fold), pos2(r, b), pos2(l, b)],
+            stroke,
+        ));
+        painter.line_segment([pos2(r - fold, t), pos2(r - fold, t + fold)], stroke);
+        painter.line_segment([pos2(r - fold, t + fold), pos2(r, t + fold)], stroke);
+        let lx1 = l + rect.width() * 0.14;
+        let lx2 = r - rect.width() * 0.14;
+        painter.line_segment([pos2(lx1, rect.top() + rect.height() * 0.54), pos2(lx2, rect.top() + rect.height() * 0.54)], stroke);
+        painter.line_segment([pos2(lx1, rect.top() + rect.height() * 0.69), pos2(lx2, rect.top() + rect.height() * 0.69)], stroke);
+    }
+
+    pub fn draw_compressed(painter: &Painter, rect: Rect, color: Color32) {
+        let stroke = Stroke::new(1.4_f32, color);
+        let l = rect.left() + rect.width() * 0.14;
+        let r = rect.right() - rect.width() * 0.14;
+        let t = rect.top() + rect.height() * 0.16;
+        let lid_b = rect.top() + rect.height() * 0.38;
+        let b = rect.bottom() - rect.height() * 0.16;
+        let lid_rect = Rect::from_min_max(pos2(l, t), pos2(r, lid_b));
+        painter.rect_stroke(lid_rect, Rounding::same(1.5), stroke);
+        let bl = rect.left() + rect.width() * 0.20;
+        let br = rect.right() - rect.width() * 0.20;
+        painter.line_segment([pos2(bl, lid_b), pos2(bl, b)], stroke);
+        painter.line_segment([pos2(bl, b), pos2(br, b)], stroke);
+        painter.line_segment([pos2(br, b), pos2(br, lid_b)], stroke);
+        let hy = rect.top() + rect.height() * 0.56;
+        painter.line_segment([pos2(rect.left() + rect.width() * 0.39, hy), pos2(rect.right() - rect.width() * 0.39, hy)], stroke);
+    }
+
     pub fn draw_programs(painter: &Painter, rect: Rect, color: Color32) {
-        let p1 = pos2(rect.center().x + 1.0, rect.top() + 1.0);
-        let p2 = pos2(rect.left() + 3.0, rect.center().y + 1.0);
-        let p3 = pos2(rect.center().x, rect.center().y + 1.0);
-        let p4 = pos2(rect.center().x - 1.0, rect.bottom() - 1.0);
-        let p5 = pos2(rect.right() - 3.0, rect.center().y - 1.0);
-        let p6 = pos2(rect.center().x, rect.center().y - 1.0);
-        painter.add(egui::epaint::PathShape::convex_polygon(vec![p1, p2, p3, p4, p5, p6], color, Stroke::NONE));
+        let stroke = Stroke::new(1.4_f32, color);
+        let box_rect = Rect::from_min_max(
+            pos2(rect.left() + rect.width() * 0.12, rect.top() + rect.height() * 0.16),
+            pos2(rect.right() - rect.width() * 0.12, rect.bottom() - rect.height() * 0.16),
+        );
+        painter.rect_stroke(box_rect, Rounding::same(2.5), stroke);
+        let px1 = rect.left() + rect.width() * 0.31;
+        let px2 = rect.left() + rect.width() * 0.44;
+        let py1 = rect.top() + rect.height() * 0.40;
+        let pym = rect.top() + rect.height() * 0.52;
+        let py2 = rect.top() + rect.height() * 0.64;
+        painter.line_segment([pos2(px1, py1), pos2(px2, pym)], stroke);
+        painter.line_segment([pos2(px2, pym), pos2(px1, py2)], stroke);
+        painter.line_segment([pos2(rect.left() + rect.width() * 0.52, py2), pos2(rect.left() + rect.width() * 0.70, py2)], stroke);
     }
 
     pub fn draw_other(painter: &Painter, rect: Rect, color: Color32) {
-        painter.circle_stroke(rect.center(), rect.width() * 0.38, Stroke::new(1.2_f32, color));
-        painter.circle_filled(rect.center(), 2.0, color);
+        painter.circle_stroke(rect.center(), rect.width() * 0.34, Stroke::new(1.4_f32, color));
+        painter.circle_filled(rect.center(), 1.8, color);
     }
 
     pub fn draw_all(painter: &Painter, rect: Rect, color: Color32) {
-        let off = rect.width() * 0.22;
-        let c = rect.center();
-        let r = 2.0;
-        painter.circle_filled(pos2(c.x - off, c.y - off), r, color);
-        painter.circle_filled(pos2(c.x + off, c.y - off), r, color);
-        painter.circle_filled(pos2(c.x - off, c.y + off), r, color);
-        painter.circle_filled(pos2(c.x + off, c.y + off), r, color);
-    }
-
-    pub fn draw_sparkle(painter: &Painter, rect: Rect, color: Color32) {
-        let c = rect.center();
-        let rx = rect.width() * 0.45;
-        let ry = rect.height() * 0.45;
-        let pts = vec![
-            pos2(c.x, c.y - ry),
-            pos2(c.x + rx * 0.25, c.y - ry * 0.25),
-            pos2(c.x + rx, c.y),
-            pos2(c.x + rx * 0.25, c.y + ry * 0.25),
-            pos2(c.x, c.y + ry),
-            pos2(c.x - rx * 0.25, c.y + ry * 0.25),
-            pos2(c.x - rx, c.y),
-            pos2(c.x - rx * 0.25, c.y - ry * 0.25),
-        ];
-        painter.add(egui::epaint::PathShape::convex_polygon(pts, color, Stroke::NONE));
+        let stroke = Stroke::new(1.4_f32, color);
+        let gap = rect.width() * 0.10;
+        let sz = rect.width() * 0.28;
+        let l = rect.center().x - gap * 0.5 - sz;
+        let r = rect.center().x + gap * 0.5;
+        let t = rect.center().y - gap * 0.5 - sz;
+        let b = rect.center().y + gap * 0.5;
+        for (x, y) in [(l, t), (r, t), (l, b), (r, b)] {
+            painter.rect_stroke(Rect::from_min_size(pos2(x, y), eframe::egui::vec2(sz, sz)), Rounding::same(1.5), stroke);
+        }
     }
 
     pub fn draw_down(painter: &Painter, rect: Rect, color: Color32) {
@@ -312,11 +401,12 @@ fn sidebar_row<T: PartialEq + Clone>(
     count: usize,
     palette: &theme::Palette,
     draw_icon: impl FnOnce(&Painter, Rect, Color32),
-) {
+) -> bool {
     let is_selected = *current == val;
-    let row_height = 28.0;
+    let row_height = 34.0;
     let (rect, response) = ui.allocate_exact_size(Vec2::new(ui.available_width(), row_height), egui::Sense::click());
-    if response.clicked() {
+    let clicked = response.clicked();
+    if clicked {
         *current = val;
     }
     if response.hovered() {
@@ -340,17 +430,17 @@ fn sidebar_row<T: PartialEq + Clone>(
     };
 
     // Draw icon at left
-    let icon_rect = Rect::from_center_size(pos2(rect.left() + 16.0, rect.center().y), Vec2::splat(13.0));
+    let icon_rect = Rect::from_center_size(pos2(rect.left() + 17.0, rect.center().y), Vec2::splat(16.0));
     draw_icon(ui.painter(), icon_rect, fg_color);
 
     // Text label
     let text_galley = ui.painter().layout_no_wrap(
         name.to_string(),
-        egui::FontId::proportional(13.0),
+        egui::FontId::proportional(13.5),
         fg_color,
     );
     ui.painter().galley(
-        pos2(rect.left() + 30.0, rect.center().y - text_galley.size().y / 2.0),
+        pos2(rect.left() + 36.0, rect.center().y - text_galley.size().y / 2.0),
         text_galley,
         fg_color,
     );
@@ -364,7 +454,79 @@ fn sidebar_row<T: PartialEq + Clone>(
         palette.muted
     };
     let galley = ui.painter().layout_no_wrap(count.to_string(), egui::FontId::proportional(12.0), badge_color);
-    ui.painter().galley(pos2(rect.right() - galley.size().x - 10.0, rect.center().y - galley.size().y / 2.0), galley, badge_color);
+    ui.painter().galley(pos2(rect.right() - galley.size().x - 8.0, rect.center().y - galley.size().y / 2.0), galley, badge_color);
+    clicked
+}
+
+fn toolbar_button(
+    ui: &mut egui::Ui,
+    palette: &theme::Palette,
+    label: &str,
+    enabled: bool,
+    draw_icon: impl FnOnce(&Painter, Rect, Color32),
+) -> egui::Response {
+    let font = egui::FontId::proportional(12.0);
+    let label_galley = ui.painter().layout_no_wrap(label.to_string(), font.clone(), palette.text);
+    let desired_w = (label_galley.size().x + 24.0).max(64.0);
+    let desired_h = 52.0;
+    let sense = if enabled { egui::Sense::click() } else { egui::Sense::hover() };
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(desired_w, desired_h), sense);
+
+    let bg = if enabled && (response.hovered() || response.is_pointer_button_down_on()) {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        palette.raise
+    } else {
+        Color32::TRANSPARENT
+    };
+    if bg != Color32::TRANSPARENT {
+        ui.painter().rect_filled(rect, Rounding::same(6.0), bg);
+    }
+
+    let icon_color = if enabled { palette.accent } else { palette.accent.gamma_multiply(0.4) };
+    let text_color = if enabled { palette.text } else { palette.text.gamma_multiply(0.4) };
+
+    let icon_rect = Rect::from_center_size(pos2(rect.center().x, rect.top() + 17.0), Vec2::splat(18.0));
+    draw_icon(ui.painter(), icon_rect, icon_color);
+
+    let galley = ui.painter().layout_no_wrap(label.to_string(), font, text_color);
+    ui.painter().galley(
+        pos2(rect.center().x - galley.size().x / 2.0, rect.bottom() - galley.size().y - 7.0),
+        galley,
+        text_color,
+    );
+    response
+}
+
+fn menubar_theme_button(
+    ui: &mut egui::Ui,
+    mode: theme::ThemeMode,
+    palette: &theme::Palette,
+) -> egui::Response {
+    let label = if mode == theme::ThemeMode::Dark { "Light mode" } else { "Dark mode" };
+    let font = egui::FontId::proportional(12.5);
+    let measure = ui.painter().layout_no_wrap(label.to_string(), font.clone(), palette.text);
+    let desired_w = 12.0 + 16.0 + 8.0 + measure.size().x + 12.0;
+    let desired_h = 28.0;
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(desired_w, desired_h), egui::Sense::click());
+
+    if response.hovered() || response.is_pointer_button_down_on() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+        ui.painter().rect_filled(rect, Rounding::same(6.0), palette.raise);
+    }
+
+    let icon_rect = Rect::from_center_size(pos2(rect.left() + 18.0, rect.center().y), Vec2::splat(16.0));
+    if mode == theme::ThemeMode::Dark {
+        icons::draw_sun(ui.painter(), icon_rect, palette.text);
+    } else {
+        icons::draw_moon(ui.painter(), icon_rect, palette.text);
+    }
+    let galley = ui.painter().layout_no_wrap(label.to_string(), font, palette.text);
+    ui.painter().galley(
+        pos2(icon_rect.right() + 7.0, rect.center().y - galley.size().y / 2.0),
+        galley,
+        palette.text,
+    );
+    response
 }
 
 fn primary_button(
@@ -1140,7 +1302,6 @@ struct CosmoDownloaderApp {
     selected_tab: FilterTab,
     selected_category: CategoryFilter,
     counts: AppCounts,
-    confirm_delete_id: Option<String>,
     theme_mode: theme::ThemeMode,
     selected_row_ids: std::collections::HashSet<String>,
     logo_texture: egui::TextureHandle,
@@ -1458,7 +1619,6 @@ impl CosmoDownloaderApp {
             selected_tab: saved_tab,
             selected_category: saved_category,
             counts: initial_counts,
-            confirm_delete_id: None,
             theme_mode: saved_theme,
             selected_row_ids: std::collections::HashSet::new(),
             logo_texture,
@@ -1757,26 +1917,32 @@ impl CosmoDownloaderApp {
                 });
                 ui.add_space(4.0);
 
+                let palette = *self.theme_mode.palette();
+
                 // Row 4: Remember this path checkbox
                 let remember_label = format!("Remember this path for \"{}\" category", self.add_category);
-                ui.checkbox(&mut self.add_remember_category, egui::RichText::new(remember_label).size(11.0).color(Color32::LIGHT_GRAY));
+                ui.checkbox(&mut self.add_remember_category, egui::RichText::new(remember_label).size(11.0).color(palette.muted));
                 ui.add_space(2.0);
 
                 // Row 5: Path preview frame
-                let frame = egui::Frame::none().fill(Color32::from_rgb(26, 28, 48)).inner_margin(Margin::symmetric(6.0, 4.0)).rounding(Rounding::same(4.0));
+                let frame = egui::Frame::none()
+                    .fill(palette.bg)
+                    .stroke(Stroke::new(1.0_f32, palette.line))
+                    .inner_margin(Margin::symmetric(6.0, 4.0))
+                    .rounding(Rounding::same(6.0));
                 frame.show(ui, |ui| {
                     ui.set_width(380.0);
                     let mut dir_display = self.add_save_dir.clone();
                     if !dir_display.ends_with('\\') && !dir_display.ends_with('/') {
                         dir_display.push('\\');
                     }
-                    ui.label(egui::RichText::new(dir_display).size(11.0).color(Color32::from_rgb(140, 150, 180)));
+                    ui.label(egui::RichText::new(dir_display).size(11.0).color(palette.muted));
                 });
                 ui.add_space(4.0);
 
                 // Row 6: Description
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new("Description:").size(11.0).color(Color32::LIGHT_GRAY));
+                    ui.label(egui::RichText::new("Description:").size(11.0).color(palette.muted));
                     ui.add(egui::TextEdit::singleline(&mut self.add_description).desired_width(290.0));
                 });
             });
@@ -1788,18 +1954,11 @@ impl CosmoDownloaderApp {
                 ui.set_width(110.0);
                 ui.add_space(10.0);
 
-                let cat_icon = match self.add_category.as_str() {
-                "Video" => "▶",
-                "Music" => "♫",
-                "Documents" => "≡",
-                "Compressed" => "◆",
-                "Programs" => "⚡",
-                _ => "●",
-                };
-                ui.label(egui::RichText::new(cat_icon).size(42.0));
-                ui.add_space(4.0);
-
                 let palette = *self.theme_mode.palette();
+                let (cat_icon_rect, _) = ui.allocate_exact_size(Vec2::splat(36.0), egui::Sense::hover());
+                draw_category_icon(ui.painter(), cat_icon_rect, &self.add_category, palette.accent);
+                ui.add_space(6.0);
+
                 if rustget_core::youtube::is_streaming_site(&self.add_url) {
                     ui.label(egui::RichText::new("Adaptive Stream").strong().size(12.0).color(palette.accent));
                 } else if let Some(sz) = self.add_file_size {
@@ -1899,7 +2058,8 @@ impl CosmoDownloaderApp {
         let palette = *self.theme_mode.palette();
         // Header: Icon + Filename + Speed/ETA
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new("↓").size(32.0).color(palette.accent));
+            let (dl_icon_rect, _) = ui.allocate_exact_size(Vec2::splat(28.0), egui::Sense::hover());
+            icons::draw_down(ui.painter(), dl_icon_rect, palette.accent);
             ui.add_space(8.0);
             ui.vertical(|ui| {
                 ui.label(egui::RichText::new(&fname).strong().size(13.5).color(palette.text));
@@ -1929,8 +2089,8 @@ impl CosmoDownloaderApp {
         });
         ui.add_space(2.0);
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new("Save path:").size(11.0).color(Color32::LIGHT_GRAY));
-            ui.label(egui::RichText::new(&self.active_popup_target_path).size(11.0).color(Color32::from_rgb(140, 150, 180)));
+            ui.label(egui::RichText::new("Save path:").size(11.0).color(palette.muted));
+            ui.label(egui::RichText::new(&self.active_popup_target_path).size(11.0).color(palette.text));
         });
 
         ui.add_space(12.0);
@@ -2428,11 +2588,12 @@ impl eframe::App for CosmoDownloaderApp {
             .show(ctx, |ui| {
                 ui.spacing_mut().item_spacing = Vec2::ZERO;
 
-                // 1. Custom Frameless Window Title Bar (36px high, 12px left padding)
+                // 1. Custom Frameless Window Title Bar (36px high, --raise background, 12px left padding)
                 let (titlebar_rect, _) = ui.allocate_exact_size(
                     Vec2::new(ui.available_width(), 36.0),
                     egui::Sense::hover(),
                 );
+                ui.painter().rect_filled(titlebar_rect, Rounding::ZERO, palette.raise);
                 let win_btn_w = 46.0;
                 let controls_total_w = win_btn_w * 3.0;
                 let close_rect = Rect::from_min_size(
@@ -2464,9 +2625,8 @@ impl eframe::App for CosmoDownloaderApp {
                     Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)),
                     Color32::WHITE,
                 );
-                let title_str = format!("Cosmo Downloader v{}", env!("CARGO_PKG_VERSION"));
                 let title_galley = ui.painter().layout_no_wrap(
-                    title_str,
+                    "Cosmo Downloader".to_string(),
                     egui::FontId::proportional(12.5),
                     palette.text,
                 );
@@ -2482,18 +2642,23 @@ impl eframe::App for CosmoDownloaderApp {
                 let close_resp = ui.interact(close_rect, ui.id().with("win_close_btn"), egui::Sense::click());
 
                 if min_resp.hovered() {
-                    ui.painter().rect_filled(min_rect, Rounding::ZERO, palette.raise);
+                    ui.painter().rect_filled(min_rect, Rounding::ZERO, palette.line);
+                    ui.painter().rect_filled(min_rect, Rounding::ZERO, Color32::TRANSPARENT);
+                    icons::draw_win_min(ui.painter(), min_rect.center(), palette.text);
+                } else {
+                    icons::draw_win_min(ui.painter(), min_rect.center(), palette.muted);
                 }
-                icons::draw_win_min(ui.painter(), min_rect.center(), palette.muted);
                 if min_resp.clicked() {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
                 }
 
                 let is_maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
                 if max_resp.hovered() {
-                    ui.painter().rect_filled(max_rect, Rounding::ZERO, palette.raise);
+                    ui.painter().rect_filled(max_rect, Rounding::ZERO, palette.line);
+                    icons::draw_win_max(ui.painter(), max_rect.center(), palette.text, is_maximized);
+                } else {
+                    icons::draw_win_max(ui.painter(), max_rect.center(), palette.muted, is_maximized);
                 }
-                icons::draw_win_max(ui.painter(), max_rect.center(), palette.muted, is_maximized);
                 if max_resp.clicked() {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_maximized));
                 }
@@ -2535,7 +2700,7 @@ impl eframe::App for CosmoDownloaderApp {
                                 ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
                                 ui.visuals_mut().widgets.inactive.bg_fill = Color32::TRANSPARENT;
                                 ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::NONE;
-                                ui.visuals_mut().widgets.inactive.fg_stroke = Stroke::new(1.0_f32, palette.muted);
+                                ui.visuals_mut().widgets.inactive.fg_stroke = Stroke::new(1.0_f32, palette.text);
                                 ui.visuals_mut().widgets.hovered.weak_bg_fill = palette.raise;
                                 ui.visuals_mut().widgets.hovered.bg_fill = palette.raise;
                                 ui.visuals_mut().widgets.hovered.bg_stroke = Stroke::NONE;
@@ -2544,7 +2709,7 @@ impl eframe::App for CosmoDownloaderApp {
                                 ui.visuals_mut().widgets.open.bg_fill = palette.raise;
                                 ui.visuals_mut().widgets.open.fg_stroke = Stroke::new(1.0_f32, palette.text);
 
-                                ui.menu_button(egui::RichText::new("File").size(12.5), |ui| {
+                                ui.menu_button(egui::RichText::new("File").size(13.0), |ui| {
                                     if ui.button("Add Download URL...").clicked() {
                                         self.show_add_dialog = true;
                                         ui.close_menu();
@@ -2555,7 +2720,7 @@ impl eframe::App for CosmoDownloaderApp {
                                     }
                                 });
 
-                                ui.menu_button(egui::RichText::new("Downloads").size(12.5), |ui| {
+                                ui.menu_button(egui::RichText::new("Downloads").size(13.0), |ui| {
                                     if ui.button("Pause All").clicked() {
                                         let q = Arc::clone(&self.queue);
                                         let ids: Vec<String> = self.downloads.iter()
@@ -2580,7 +2745,7 @@ impl eframe::App for CosmoDownloaderApp {
                                     }
                                 });
 
-                                ui.menu_button(egui::RichText::new("View").size(12.5), |ui| {
+                                ui.menu_button(egui::RichText::new("View").size(13.0), |ui| {
                                     let label = if self.theme_mode == theme::ThemeMode::Dark {
                                         "Switch to Light mode"
                                     } else {
@@ -2595,16 +2760,28 @@ impl eframe::App for CosmoDownloaderApp {
                                         });
                                         ui.close_menu();
                                     }
+                                    ui.separator();
+                                    for (tab, name) in [
+                                        (FilterTab::All, "Show All Statuses"),
+                                        (FilterTab::Downloading, "Downloading Only"),
+                                        (FilterTab::Completed, "Completed Only"),
+                                        (FilterTab::Paused, "Paused Only"),
+                                    ] {
+                                        if ui.selectable_label(self.selected_tab == tab, name).clicked() {
+                                            self.selected_tab = tab;
+                                            ui.close_menu();
+                                        }
+                                    }
                                 });
 
-                                ui.menu_button(egui::RichText::new("Tools").size(12.5), |ui| {
-                                    if ui.button("Settings...").clicked() {
+                                ui.menu_button(egui::RichText::new("Tools").size(13.0), |ui| {
+                                    if ui.button("Options...").clicked() {
                                         self.show_settings_dialog = true;
                                         ui.close_menu();
                                     }
                                 });
 
-                                ui.menu_button(egui::RichText::new("Help").size(12.5), |ui| {
+                                ui.menu_button(egui::RichText::new("Help").size(13.0), |ui| {
                                     if ui.button("Check for updates").clicked() {
                                         self.update_check_rx = Some(spawn_update_check(self.queue.db().clone(), ctx.clone()));
                                         ui.close_menu();
@@ -2617,12 +2794,7 @@ impl eframe::App for CosmoDownloaderApp {
                             });
 
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                let theme_label = if self.theme_mode == theme::ThemeMode::Dark {
-                                    "☀ Light mode"
-                                } else {
-                                    "☾ Dark mode"
-                                };
-                                if secondary_button(ui, self.theme_mode, &palette, theme_label, Vec2::new(96.0, 26.0), true).clicked() {
+                                if menubar_theme_button(ui, self.theme_mode, &palette).clicked() {
                                     self.theme_mode = self.theme_mode.toggle();
                                     let q = Arc::clone(&self.queue);
                                     let t_str = self.theme_mode.label();
@@ -2641,39 +2813,28 @@ impl eframe::App for CosmoDownloaderApp {
                     Stroke::new(1.0_f32, palette.line),
                 );
 
-                // 3. Toolbar: padding 8px 12px
+                // 3. Toolbar: vertical icon-over-label .tb buttons (Add | Resume, Pause, Delete | Options)
                 egui::Frame::none()
                     .inner_margin(Margin::symmetric(12.0, 8.0))
                     .show(ui, |ui| {
-                        ui.spacing_mut().item_spacing.x = 6.0;
+                        ui.spacing_mut().item_spacing.x = 4.0;
                         ui.horizontal(|ui| {
-                            let btn_size = Vec2::new(82.0, 30.0);
-
-                            if secondary_button(ui, self.theme_mode, &palette, "+ Add URL", btn_size, true).clicked() {
+                            if toolbar_button(ui, &palette, "Add", true, icons::draw_plus).clicked() {
                                 self.show_add_dialog = true;
                             }
 
-                            ui.add_space(2.0);
-                            ui.separator();
-                            ui.add_space(2.0);
+                            // 1px vertical separator, height 32px
+                            let (sep1_rect, _) = ui.allocate_exact_size(Vec2::new(17.0, 52.0), egui::Sense::hover());
+                            ui.painter().line_segment(
+                                [pos2(sep1_rect.center().x, sep1_rect.center().y - 16.0), pos2(sep1_rect.center().x, sep1_rect.center().y + 16.0)],
+                                Stroke::new(1.0_f32, palette.line),
+                            );
 
-                            if secondary_button(ui, self.theme_mode, &palette, "⏸ Pause All", btn_size, true).clicked() {
+                            let has_selection = !self.selected_row_ids.is_empty();
+                            if toolbar_button(ui, &palette, "Resume", has_selection, icons::draw_play).clicked() {
                                 let q = Arc::clone(&self.queue);
                                 let ids: Vec<String> = self.downloads.iter()
-                                    .filter(|d| d.status == "downloading" || d.status == "queued")
-                                    .map(|d| d.id.clone())
-                                    .collect();
-                                tokio::spawn(async move {
-                                    for id in ids {
-                                        let _ = q.pause(&id).await;
-                                    }
-                                });
-                            }
-
-                            if secondary_button(ui, self.theme_mode, &palette, "▶ Resume All", Vec2::new(94.0, 30.0), true).clicked() {
-                                let q = Arc::clone(&self.queue);
-                                let ids: Vec<String> = self.downloads.iter()
-                                    .filter(|d| d.status == "paused" || d.status == "failed")
+                                    .filter(|d| self.selected_row_ids.contains(&d.id) && (d.status == "paused" || d.status == "failed"))
                                     .map(|d| d.id.clone())
                                     .collect();
                                 tokio::spawn(async move {
@@ -2683,8 +2844,20 @@ impl eframe::App for CosmoDownloaderApp {
                                 });
                             }
 
-                            let has_selection = !self.selected_row_ids.is_empty();
-                            if secondary_button(ui, self.theme_mode, &palette, "🗑 Delete", btn_size, has_selection).clicked() {
+                            if toolbar_button(ui, &palette, "Pause", has_selection, icons::draw_pause).clicked() {
+                                let q = Arc::clone(&self.queue);
+                                let ids: Vec<String> = self.downloads.iter()
+                                    .filter(|d| self.selected_row_ids.contains(&d.id) && (d.status == "downloading" || d.status == "queued"))
+                                    .map(|d| d.id.clone())
+                                    .collect();
+                                tokio::spawn(async move {
+                                    for id in ids {
+                                        let _ = q.pause(&id).await;
+                                    }
+                                });
+                            }
+
+                            if toolbar_button(ui, &palette, "Delete", has_selection, icons::draw_trash).clicked() {
                                 let q = Arc::clone(&self.queue);
                                 let ids: Vec<String> = self.selected_row_ids.iter().cloned().collect();
                                 tokio::spawn(async move {
@@ -2695,25 +2868,15 @@ impl eframe::App for CosmoDownloaderApp {
                                 self.selected_row_ids.clear();
                             }
 
-                            ui.add_space(2.0);
-                            ui.separator();
-                            ui.add_space(2.0);
+                            let (sep2_rect, _) = ui.allocate_exact_size(Vec2::new(17.0, 52.0), egui::Sense::hover());
+                            ui.painter().line_segment(
+                                [pos2(sep2_rect.center().x, sep2_rect.center().y - 16.0), pos2(sep2_rect.center().x, sep2_rect.center().y + 16.0)],
+                                Stroke::new(1.0_f32, palette.line),
+                            );
 
-                            if secondary_button(ui, self.theme_mode, &palette, "⚙ Settings", btn_size, true).clicked() {
+                            if toolbar_button(ui, &palette, "Options", true, icons::draw_sliders).clicked() {
                                 self.show_settings_dialog = true;
                             }
-
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                let total_speed: f64 = self.active_progress.values().map(|p| p.speed_bps).sum();
-                                if total_speed > 0.0 {
-                                    ui.label(
-                                        egui::RichText::new(format!("Speed: {}", SpeedTracker::format_speed(total_speed)))
-                                            .color(palette.accent)
-                                            .strong()
-                                            .size(11.5),
-                                    );
-                                }
-                            });
                         });
                     });
 
@@ -2724,26 +2887,36 @@ impl eframe::App for CosmoDownloaderApp {
                 );
             });
 
-        // Bottom Status Bar
+        let shown_count = self.downloads.iter().filter(|d| {
+            let status_match = match self.selected_tab {
+                FilterTab::All => true,
+                FilterTab::Downloading => d.status == "downloading" || d.status == "queued",
+                FilterTab::Completed => d.status == "completed",
+                FilterTab::Paused => d.status == "paused",
+            };
+            status_match && self.selected_category.matches(&d.category)
+        }).count();
+
+        // Bottom Status Bar (28px height)
         egui::TopBottomPanel::bottom("bottom_bar")
-            .frame(egui::Frame::none().fill(palette.raise).stroke(Stroke::new(1.0_f32, palette.line)).inner_margin(Margin::symmetric(14.0, 6.0)))
+            .exact_height(28.0)
+            .frame(egui::Frame::none().fill(palette.raise).stroke(Stroke::new(1.0_f32, palette.line)).inner_margin(Margin::symmetric(16.0, 4.0)))
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_centered(|ui| {
                     let total_speed: f64 = self.active_progress.values().map(|p| p.speed_bps).sum();
                     let raw_mb = total_speed / (1024.0 * 1024.0);
                     let speed_mb = if raw_mb > 0.0 { raw_mb } else { 0.0 };
-                    let count = self.downloads.len();
-                    let item_word = if count == 1 { "item" } else { "items" };
+                    let item_word = if shown_count == 1 { "item" } else { "items" };
                     ui.label(
-                        egui::RichText::new(format!("{} {} · {:.1} MB/s · Warp Engine active", count, item_word, speed_mb))
-                            .size(11.5)
+                        egui::RichText::new(format!("{} {} · {:.1} MB/s", shown_count, item_word, speed_mb))
+                            .size(12.0)
                             .color(palette.muted),
                     );
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
                             egui::RichText::new(format!("Cosmo Downloader v{} · © 2026 Mahedi", env!("CARGO_PKG_VERSION")))
-                                .size(11.5)
+                                .size(12.0)
                                 .color(palette.muted),
                         );
 
@@ -2752,7 +2925,7 @@ impl eframe::App for CosmoDownloaderApp {
                             if ui.add(
                                 egui::Button::new(
                                     egui::RichText::new("View release")
-                                        .size(11.0)
+                                        .size(11.5)
                                         .color(palette.accent),
                                 )
                                 .frame(false),
@@ -2775,34 +2948,33 @@ impl eframe::App for CosmoDownloaderApp {
         let prev_tab = self.selected_tab;
         let prev_cat = self.selected_category;
 
-        // Left Navigation Bar (Categories & Filters)
+        // Left Sidebar (200px wide, Categories)
         egui::SidePanel::left("side_panel")
             .resizable(false)
-            .default_width(204.0)
-            .frame(egui::Frame::none().fill(palette.bg).stroke(Stroke::new(1.0_f32, palette.line)).inner_margin(Margin::symmetric(10.0, 10.0)))
+            .exact_width(200.0)
+            .frame(egui::Frame::none().fill(palette.bg).stroke(Stroke::new(1.0_f32, palette.line)).inner_margin(Margin::same(12.0)))
             .show(ctx, |ui| {
                 egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 2.0;
 
-                    ui.label(egui::RichText::new("Status").size(11.5).color(palette.muted).strong());
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        ui.add_space(8.0);
+                        ui.label(egui::RichText::new("Categories").size(12.0).color(palette.muted));
+                    });
                     ui.add_space(4.0);
 
-                    sidebar_row(ui, &mut self.selected_tab, FilterTab::All, "All Downloads", self.counts.status_all, &palette, icons::draw_all);
-                    sidebar_row(ui, &mut self.selected_tab, FilterTab::Downloading, "Downloading", self.counts.status_downloading, &palette, icons::draw_play);
-                    sidebar_row(ui, &mut self.selected_tab, FilterTab::Completed, "Completed", self.counts.status_completed, &palette, icons::draw_folder);
-                    sidebar_row(ui, &mut self.selected_tab, FilterTab::Paused, "Paused", self.counts.status_paused, &palette, icons::draw_pause);
-
-                    ui.add_space(10.0);
-                    ui.label(egui::RichText::new("Categories").size(11.5).color(palette.muted).strong());
-                    ui.add_space(4.0);
-
-                    sidebar_row(ui, &mut self.selected_category, CategoryFilter::All, "All Categories", self.counts.cat_all, &palette, icons::draw_all);
+                    if sidebar_row(ui, &mut self.selected_category, CategoryFilter::All, "All downloads", self.counts.cat_all, &palette, icons::draw_all) {
+                        self.selected_tab = FilterTab::All;
+                    }
+                    sidebar_row(ui, &mut self.selected_category, CategoryFilter::Programs, "Programs", self.counts.cat_programs, &palette, icons::draw_programs);
                     sidebar_row(ui, &mut self.selected_category, CategoryFilter::Video, "Video", self.counts.cat_video, &palette, icons::draw_video);
                     sidebar_row(ui, &mut self.selected_category, CategoryFilter::Music, "Music", self.counts.cat_music, &palette, icons::draw_music);
                     sidebar_row(ui, &mut self.selected_category, CategoryFilter::Documents, "Documents", self.counts.cat_documents, &palette, icons::draw_documents);
-                    sidebar_row(ui, &mut self.selected_category, CategoryFilter::Compressed, "Compressed", self.counts.cat_compressed, &palette, icons::draw_compressed);
-                    sidebar_row(ui, &mut self.selected_category, CategoryFilter::Programs, "Programs", self.counts.cat_programs, &palette, icons::draw_programs);
-                    sidebar_row(ui, &mut self.selected_category, CategoryFilter::Other, "Other", self.counts.cat_other, &palette, icons::draw_other);
+                    sidebar_row(ui, &mut self.selected_category, CategoryFilter::Compressed, "Archives", self.counts.cat_compressed, &palette, icons::draw_compressed);
+                    if self.counts.cat_other > 0 || self.selected_category == CategoryFilter::Other {
+                        sidebar_row(ui, &mut self.selected_category, CategoryFilter::Other, "Other", self.counts.cat_other, &palette, icons::draw_other);
+                    }
                 });
             });
 
@@ -2836,205 +3008,243 @@ impl eframe::App for CosmoDownloaderApp {
         }
 
         // Main Content Area (Columnar Download Table)
-        egui::CentralPanel::default().show(ctx, |ui| {
-            let filtered_downloads: Vec<&DownloadRecord> = self.downloads.iter().filter(|d| {
-                let status_match = match self.selected_tab {
-                    FilterTab::All => true,
-                    FilterTab::Downloading => d.status == "downloading" || d.status == "queued",
-                    FilterTab::Completed => d.status == "completed",
-                    FilterTab::Paused => d.status == "paused",
-                };
-                let cat_match = self.selected_category.matches(&d.category);
-                status_match && cat_match
-            }).collect();
+        egui::CentralPanel::default()
+            .frame(egui::Frame::none().fill(palette.surface))
+            .show(ctx, |ui| {
+                ui.spacing_mut().item_spacing = Vec2::ZERO;
+                let filtered_downloads: Vec<DownloadRecord> = self.downloads.iter().filter(|d| {
+                    let status_match = match self.selected_tab {
+                        FilterTab::All => true,
+                        FilterTab::Downloading => d.status == "downloading" || d.status == "queued",
+                        FilterTab::Completed => d.status == "completed",
+                        FilterTab::Paused => d.status == "paused",
+                    };
+                    status_match && self.selected_category.matches(&d.category)
+                }).cloned().collect();
 
-            if filtered_downloads.is_empty() {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(80.0);
-                    let (icon_rect, _) = ui.allocate_exact_size(Vec2::new(36.0, 36.0), egui::Sense::hover());
-                    icons::draw_down(ui.painter(), icon_rect, palette.muted);
-                    ui.add_space(12.0);
-                    ui.label(
-                        egui::RichText::new("No downloads in this view")
-                            .size(16.0)
-                            .color(palette.text)
-                            .strong(),
-                    );
-                    ui.add_space(4.0);
-                    ui.label(
-                        egui::RichText::new("Downloads captured from browser extensions or clipboard appear here.")
-                            .size(12.0)
-                            .color(palette.muted),
-                    );
-                    ui.add_space(16.0);
-                    if primary_button(ui, &palette, "+ Add Download URL", Vec2::new(168.0, 34.0), true).clicked() {
-                        self.show_add_dialog = true;
-                    }
-                });
-            } else {
-                // Table Header
-                let row_width = ui.available_width();
+                // Column geometry matching --cols: 36px minmax(0,1fr) 92px 170px 100px 108px with 16px horizontal padding and 12px gaps
+                let avail_w = ui.available_width();
+                let pad_x = 16.0;
+                let gap = 12.0;
                 let col_check_w = 36.0;
-                let col_size_w = 85.0;
-                let col_prog_w = 160.0;
-                let col_speed_w = 95.0;
-                let col_status_w = 100.0;
-                let col_name_w = (row_width - (col_check_w + col_size_w + col_prog_w + col_speed_w + col_status_w + 32.0)).max(120.0);
+                let col_size_w = 92.0;
+                let col_prog_w = 170.0;
+                let col_speed_w = 100.0;
+                let col_status_w = 108.0;
+                let fixed_w = pad_x * 2.0 + col_check_w + col_size_w + col_prog_w + col_speed_w + col_status_w + gap * 5.0;
+                let col_name_w = (avail_w - fixed_w).max(110.0);
+
+                // Table Header (34px height)
+                let (th_rect, _) = ui.allocate_exact_size(Vec2::new(avail_w, 34.0), egui::Sense::hover());
+                let x_check = th_rect.left() + pad_x;
+                let x_name = x_check + col_check_w + gap;
+                let x_size = x_name + col_name_w + gap;
+                let x_prog = x_size + col_size_w + gap;
+                let x_speed = x_prog + col_prog_w + gap;
+                let x_status = x_speed + col_speed_w + gap;
 
                 let all_selected = !filtered_downloads.is_empty() && filtered_downloads.iter().all(|d| self.selected_row_ids.contains(&d.id));
                 let mut header_check = all_selected;
-
-                ui.horizontal(|ui| {
-                    ui.add_space(8.0);
-                    if ui.add_sized(Vec2::new(col_check_w, 24.0), egui::Checkbox::without_text(&mut header_check)).changed() {
-                        if header_check {
-                            for d in &filtered_downloads {
-                                self.selected_row_ids.insert(d.id.clone());
-                            }
-                        } else {
-                            self.selected_row_ids.clear();
+                let th_check_rect = Rect::from_center_size(pos2(x_check + 10.0, th_rect.center().y), Vec2::splat(16.0));
+                if ui.put(th_check_rect, egui::Checkbox::without_text(&mut header_check)).changed() {
+                    if header_check {
+                        for d in &filtered_downloads {
+                            self.selected_row_ids.insert(d.id.clone());
                         }
+                    } else {
+                        self.selected_row_ids.clear();
                     }
+                }
 
-                    ui.add_sized(Vec2::new(col_name_w, 24.0), egui::Label::new(egui::RichText::new("File name").size(12.0).color(palette.muted)));
-                    ui.add_sized(Vec2::new(col_size_w, 24.0), egui::Label::new(egui::RichText::new("Size").size(12.0).color(palette.muted)));
-                    ui.add_sized(Vec2::new(col_prog_w, 24.0), egui::Label::new(egui::RichText::new("Progress").size(12.0).color(palette.muted)));
-                    ui.add_sized(Vec2::new(col_speed_w, 24.0), egui::Label::new(egui::RichText::new("Speed").size(12.0).color(palette.muted)));
-                    ui.add_sized(Vec2::new(col_status_w, 24.0), egui::Label::new(egui::RichText::new("Status").size(12.0).color(palette.muted)));
-                });
+                for (x, label) in [
+                    (x_name, "File name"),
+                    (x_size, "Size"),
+                    (x_prog, "Progress"),
+                    (x_speed, "Speed"),
+                    (x_status, "Status"),
+                ] {
+                    let g = ui.painter().layout_no_wrap(label.to_string(), egui::FontId::proportional(12.0), palette.muted);
+                    ui.painter().galley(pos2(x, th_rect.center().y - g.size().y / 2.0), g, palette.muted);
+                }
 
-                ui.separator();
+                ui.painter().line_segment(
+                    [pos2(th_rect.left(), th_rect.bottom()), pos2(th_rect.right(), th_rect.bottom())],
+                    Stroke::new(1.0_f32, palette.line),
+                );
 
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    for record in filtered_downloads {
-                        let is_sel = self.selected_row_ids.contains(&record.id);
-                        let live_prog = self.active_progress.get(&record.id);
-                        let downloaded = live_prog.map(|p| p.downloaded_bytes).unwrap_or(record.downloaded_bytes);
-                        let total = live_prog.and_then(|p| p.total_bytes).or(record.total_size);
-
-                        let pct = match total {
-                            Some(t) if t > 0 => ((downloaded as f64) / (t as f64) * 100.0).clamp(0.0, 100.0),
-                            _ => if record.status == "completed" { 100.0 } else { 0.0 },
-                        };
-
-                        let row_height = 44.0;
-                        let (row_rect, row_resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), row_height), egui::Sense::click());
-
-                        let row_bg = if is_sel {
-                            palette.accent_soft
-                        } else if row_resp.hovered() {
-                            palette.raise
-                        } else {
-                            palette.surface
-                        };
-
-                        ui.painter().rect_filled(row_rect, Rounding::ZERO, row_bg);
-                        ui.painter().line_segment(
-                            [pos2(row_rect.left(), row_rect.bottom()), pos2(row_rect.right(), row_rect.bottom())],
-                            Stroke::new(1.0_f32, palette.line),
+                if filtered_downloads.is_empty() {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(48.0);
+                        ui.label(
+                            egui::RichText::new("No downloads in this category")
+                                .size(14.0)
+                                .color(palette.muted),
                         );
+                    });
+                } else {
+                    egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                        for record in &filtered_downloads {
+                            let is_sel = self.selected_row_ids.contains(&record.id);
+                            let live_prog = self.active_progress.get(&record.id);
+                            let downloaded = live_prog.map(|p| p.downloaded_bytes).unwrap_or(record.downloaded_bytes);
+                            let total = live_prog.and_then(|p| p.total_bytes).or(record.total_size);
 
-                        // Checkbox
-                        let check_rect = Rect::from_center_size(pos2(row_rect.left() + 20.0, row_rect.center().y), Vec2::splat(16.0));
-                        let mut item_checked = is_sel;
-                        if ui.put(check_rect, egui::Checkbox::without_text(&mut item_checked)).changed() {
-                            if item_checked {
-                                self.selected_row_ids.insert(record.id.clone());
+                            let pct = match total {
+                                Some(t) if t > 0 => ((downloaded as f64) / (t as f64) * 100.0).clamp(0.0, 100.0),
+                                _ => if record.status == "completed" { 100.0 } else { 0.0 },
+                            };
+
+                            let row_height = 48.0;
+                            let (row_rect, row_resp) = ui.allocate_exact_size(Vec2::new(avail_w, row_height), egui::Sense::click());
+                            let row_hovered = row_resp.hovered();
+
+                            let row_bg = if is_sel {
+                                palette.accent_soft
+                            } else if row_hovered {
+                                palette.raise
                             } else {
-                                self.selected_row_ids.remove(&record.id);
+                                palette.surface
+                            };
+
+                            ui.painter().rect_filled(row_rect, Rounding::ZERO, row_bg);
+                            ui.painter().line_segment(
+                                [pos2(row_rect.left(), row_rect.bottom()), pos2(row_rect.right(), row_rect.bottom())],
+                                Stroke::new(1.0_f32, palette.line),
+                            );
+
+                            // Checkbox
+                            let check_rect = Rect::from_center_size(pos2(x_check + 10.0, row_rect.center().y), Vec2::splat(16.0));
+                            let mut item_checked = is_sel;
+                            let check_resp = ui.put(check_rect, egui::Checkbox::without_text(&mut item_checked));
+                            if check_resp.changed() {
+                                if item_checked {
+                                    self.selected_row_ids.insert(record.id.clone());
+                                } else {
+                                    self.selected_row_ids.remove(&record.id);
+                                }
+                            } else if row_resp.clicked() && !check_resp.hovered() {
+                                if is_sel {
+                                    self.selected_row_ids.remove(&record.id);
+                                } else {
+                                    self.selected_row_ids.insert(record.id.clone());
+                                }
                             }
-                        }
 
-                        // Icon + Filename
-                        let name_start_x = row_rect.left() + col_check_w + 8.0;
-                        let icon_rect = Rect::from_center_size(pos2(name_start_x + 8.0, row_rect.center().y), Vec2::splat(14.0));
-                        draw_category_icon(ui.painter(), icon_rect, &record.category, palette.muted);
+                            if row_resp.double_clicked() && record.status == "completed" {
+                                shell_open_file(&record.target_path);
+                            }
 
-                        let name_rect = Rect::from_min_size(
-                            pos2(name_start_x + 22.0, row_rect.center().y - 8.0),
-                            Vec2::new(col_name_w - 26.0, 18.0),
-                        );
-                        ui.painter().text(
-                            name_rect.left_top(),
-                            egui::Align2::LEFT_TOP,
-                            &record.filename,
-                            egui::FontId::proportional(13.0),
-                            palette.text,
-                        );
+                            // Row right-click context menu
+                            let rec_id = record.id.clone();
+                            let rec_status = record.status.clone();
+                            let rec_path = record.target_path.clone();
+                            row_resp.context_menu(|ui| {
+                                if rec_status == "completed" {
+                                    if ui.button("Open").clicked() {
+                                        shell_open_file(&rec_path);
+                                        ui.close_menu();
+                                    }
+                                    if ui.button("Open folder").clicked() {
+                                        shell_open_folder_and_select(&rec_path);
+                                        ui.close_menu();
+                                    }
+                                    ui.separator();
+                                } else if rec_status == "downloading" || rec_status == "queued" {
+                                    if ui.button("Pause").clicked() {
+                                        let q = Arc::clone(&self.queue);
+                                        let id_c = rec_id.clone();
+                                        tokio::spawn(async move { let _ = q.pause(&id_c).await; });
+                                        ui.close_menu();
+                                    }
+                                } else if rec_status == "paused" || rec_status == "failed" {
+                                    if ui.button("Resume").clicked() {
+                                        let q = Arc::clone(&self.queue);
+                                        let id_c = rec_id.clone();
+                                        tokio::spawn(async move { let _ = q.resume(&id_c).await; });
+                                        ui.close_menu();
+                                    }
+                                }
+                                if ui.button("Delete").clicked() {
+                                    let q = Arc::clone(&self.queue);
+                                    let id_c = rec_id.clone();
+                                    tokio::spawn(async move { let _ = q.remove(&id_c, false).await; });
+                                    self.selected_row_ids.remove(&rec_id);
+                                    ui.close_menu();
+                                }
+                            });
 
-                        // Size
-                        let size_start_x = name_start_x + col_name_w + 4.0;
-                        let total_str = total.map(SpeedTracker::format_bytes).unwrap_or_else(|| "—".to_string());
-                        ui.painter().text(
-                            pos2(size_start_x, row_rect.center().y - 8.0),
-                            egui::Align2::LEFT_TOP,
-                            total_str,
-                            egui::FontId::proportional(12.0),
-                            palette.muted,
-                        );
+                            // Icon + Filename (clipped safely inside col_name_w)
+                            let icon_rect = Rect::from_center_size(pos2(x_name + 9.0, row_rect.center().y), Vec2::splat(18.0));
+                            draw_category_icon(ui.painter(), icon_rect, &record.category, palette.muted);
 
-                        // Progress: Thin bar + %
-                        let prog_start_x = size_start_x + col_size_w + 4.0;
-                        let bar_w = col_prog_w - 45.0;
-                        let bar_rect = Rect::from_min_size(pos2(prog_start_x, row_rect.center().y - 3.0), Vec2::new(bar_w, 6.0));
-                        ui.painter().rect_filled(bar_rect, Rounding::same(3.0), palette.raise);
+                            let text_x = x_name + 30.0;
+                            let text_max_w = (col_name_w - 30.0).max(20.0);
+                            let name_clip = Rect::from_min_size(
+                                pos2(text_x, row_rect.top()),
+                                Vec2::new(text_max_w, row_height),
+                            );
+                            let name_galley = ui.painter().layout_no_wrap(
+                                record.filename.clone(),
+                                egui::FontId::proportional(14.0),
+                                palette.text,
+                            );
+                            ui.painter().with_clip_rect(name_clip).galley(
+                                pos2(text_x, row_rect.center().y - name_galley.size().y / 2.0),
+                                name_galley,
+                                palette.text,
+                            );
 
-                        let fill_w = bar_w * (pct as f32 / 100.0);
-                        if fill_w > 0.0 {
-                            let bar_color = if record.status == "paused" { palette.muted } else { palette.accent };
-                            let fill_rect = Rect::from_min_size(bar_rect.left_top(), Vec2::new(fill_w, 6.0));
-                            ui.painter().rect_filled(fill_rect, Rounding::same(3.0), bar_color);
-                        }
+                            // Size
+                            let total_str = total.map(SpeedTracker::format_bytes).unwrap_or_else(|| "—".to_string());
+                            let size_g = ui.painter().layout_no_wrap(total_str, egui::FontId::proportional(12.0), palette.muted);
+                            ui.painter().galley(pos2(x_size, row_rect.center().y - size_g.size().y / 2.0), size_g, palette.muted);
 
-                        let pct_str = format!("{:.0}%", pct);
-                        ui.painter().text(
-                            pos2(prog_start_x + bar_w + 6.0, row_rect.center().y - 7.0),
-                            egui::Align2::LEFT_TOP,
-                            pct_str,
-                            egui::FontId::proportional(11.5),
-                            palette.muted,
-                        );
+                            // Progress: 3px thin bar above percentage text (matching .prog + .meta)
+                            let bar_w = (col_prog_w - 8.0).max(40.0);
+                            let bar_top = row_rect.center().y - 10.0;
+                            let bar_rect = Rect::from_min_size(pos2(x_prog, bar_top), Vec2::new(bar_w, 3.0));
+                            let track_color = if row_hovered { palette.line } else { palette.raise };
+                            ui.painter().rect_filled(bar_rect, Rounding::same(2.0), track_color);
 
-                        // Speed
-                        let speed_start_x = prog_start_x + col_prog_w + 4.0;
-                        let speed_str = if record.status == "downloading" || record.status == "queued" {
-                            if let Some(prog) = live_prog {
-                                let sp = self.ema_speeds.get(&record.id).copied().unwrap_or(prog.speed_bps);
-                                SpeedTracker::format_speed(sp)
+                            let fill_w = bar_w * (pct as f32 / 100.0);
+                            if fill_w > 0.0 {
+                                let bar_color = if record.status == "paused" { palette.muted } else { palette.accent };
+                                let fill_rect = Rect::from_min_size(bar_rect.left_top(), Vec2::new(fill_w, 3.0));
+                                ui.painter().rect_filled(fill_rect, Rounding::same(2.0), bar_color);
+                            }
+
+                            let pct_str = format!("{:.0}%", pct);
+                            let pct_g = ui.painter().layout_no_wrap(pct_str, egui::FontId::proportional(12.0), palette.muted);
+                            ui.painter().galley(pos2(x_prog, bar_top + 8.0), pct_g, palette.muted);
+
+                            // Speed
+                            let speed_str = if record.status == "downloading" || record.status == "queued" {
+                                if let Some(prog) = live_prog {
+                                    let sp = self.ema_speeds.get(&record.id).copied().unwrap_or(prog.speed_bps);
+                                    SpeedTracker::format_speed(sp)
+                                } else {
+                                    "—".to_string()
+                                }
                             } else {
                                 "—".to_string()
-                            }
-                        } else {
-                            "—".to_string()
-                        };
-                        ui.painter().text(
-                            pos2(speed_start_x, row_rect.center().y - 8.0),
-                            egui::Align2::LEFT_TOP,
-                            speed_str,
-                            egui::FontId::proportional(12.0),
-                            palette.muted,
-                        );
+                            };
+                            let speed_g = ui.painter().layout_no_wrap(speed_str, egui::FontId::proportional(12.0), palette.muted);
+                            ui.painter().galley(pos2(x_speed, row_rect.center().y - speed_g.size().y / 2.0), speed_g, palette.muted);
 
-                        // Status
-                        let status_start_x = speed_start_x + col_speed_w + 4.0;
-                        let status_display = match record.status.as_str() {
-                            "downloading" => "Downloading",
-                            "completed" => "Completed",
-                            "paused" => "Paused",
-                            "failed" => "Failed",
-                            _ => "Queued",
-                        };
-                        ui.painter().text(
-                            pos2(status_start_x, row_rect.center().y - 8.0),
-                            egui::Align2::LEFT_TOP,
-                            status_display,
-                            egui::FontId::proportional(12.0),
-                            palette.muted,
-                        );
-                    }
-                });
-            }
-        });
+                            // Status
+                            let status_display = match record.status.as_str() {
+                                "downloading" => "Downloading",
+                                "completed" => "Completed",
+                                "paused" => "Paused",
+                                "failed" => "Failed",
+                                _ => "Queued",
+                            };
+                            let status_g = ui.painter().layout_no_wrap(status_display.to_string(), egui::FontId::proportional(12.0), palette.muted);
+                            ui.painter().galley(pos2(x_status, row_rect.center().y - status_g.size().y / 2.0), status_g, palette.muted);
+                        }
+                    });
+                }
+            });
 
         // Download File Info Modal Dialog (IDM Style)
         if self.show_add_dialog && !self.is_popup_mode {
@@ -3198,202 +3408,6 @@ impl eframe::App for CosmoDownloaderApp {
                 });
         }
     }
-}
-
-fn render_download_card(
-    ui: &mut egui::Ui,
-    record: &DownloadRecord,
-    progress_map: &HashMap<String, DownloadProgress>,
-    ema_speeds: &HashMap<String, f64>,
-    queue: &Arc<QueueManager>,
-    confirm_delete_id: &mut Option<String>,
-) {
-    let is_active = record.status == "downloading" || record.status == "queued";
-    let border_color = if is_active {
-        Color32::from_rgba_unmultiplied(0, 240, 255, 120) // subtle cyan glow
-    } else {
-        theme::BORDER
-    };
-
-    let card_frame = egui::Frame::none()
-        .fill(theme::BG_CARD)
-        .stroke(Stroke::new(1.0_f32, border_color))
-        .rounding(Rounding::same(8.0))
-        .inner_margin(Margin::same(10.0));
-
-    card_frame.show(ui, |ui| {
-        ui.horizontal(|ui| {
-            // Category Icon & Filename
-            let (icon_rect, _) = ui.allocate_exact_size(Vec2::new(18.0, 18.0), egui::Sense::hover());
-            draw_category_icon(ui.painter(), icon_rect, &record.category, theme::DARK.accent);
-            ui.add_space(4.0);
-
-            ui.add(
-                egui::Label::new(
-                    egui::RichText::new(&record.filename)
-                        .strong()
-                        .size(13.5)
-                        .color(theme::TEXT_PRIMARY)
-                ).truncate()
-            );
-
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                // Delete button with click-to-confirm (NOT hover-confirm)
-                let is_confirming = confirm_delete_id.as_deref() == Some(&record.id);
-                if is_confirming {
-                    let confirm_btn = egui::Button::new(
-                        egui::RichText::new("Confirm?").size(11.0).color(Color32::WHITE).strong()
-                    ).fill(theme::RED_ERROR).min_size(Vec2::new(65.0, 24.0));
-
-                    if ui.add(confirm_btn).clicked() {
-                        let q_id = record.id.clone();
-                        let q = Arc::clone(queue);
-                        tokio::spawn(async move {
-                            let _ = q.remove(&q_id, false).await;
-                        });
-                        *confirm_delete_id = None;
-                    }
-
-                    if ui.add(egui::Button::new("Cancel").min_size(Vec2::new(50.0, 24.0))).clicked() {
-                        *confirm_delete_id = None;
-                    }
-                } else {
-                    let del_btn = egui::Button::new(
-                        egui::RichText::new("✕").size(11.0).color(theme::TEXT_SECONDARY)
-                    ).min_size(Vec2::new(26.0, 24.0));
-                    if ui.add(del_btn).on_hover_text("Delete Download").clicked() {
-                        *confirm_delete_id = Some(record.id.clone());
-                    }
-                }
-
-                ui.add_space(4.0);
-
-                // Action buttons
-                if record.status == "completed" {
-                    if ui.add(egui::Button::new("Folder").min_size(Vec2::new(55.0, 24.0))).on_hover_text("Show in Explorer").clicked() {
-                        shell_open_folder_and_select(&record.target_path);
-                    }
-                    ui.add_space(2.0);
-                    if ui.add(egui::Button::new("Open").min_size(Vec2::new(48.0, 24.0))).on_hover_text("Open file").clicked() {
-                        shell_open_file(&record.target_path);
-                    }
-                } else if record.status == "downloading" || record.status == "queued" {
-                    let q_id_pause = record.id.clone();
-                    let q_pause = Arc::clone(queue);
-                    if ui.add(egui::Button::new("Pause").min_size(Vec2::new(52.0, 24.0))).on_hover_text("Pause").clicked() {
-                        tokio::spawn(async move {
-                            let _ = q_pause.pause(&q_id_pause).await;
-                        });
-                    }
-                } else if record.status == "paused" || record.status == "failed" {
-                    let q_id_res = record.id.clone();
-                    let q_res = Arc::clone(queue);
-                    if ui.add(egui::Button::new("Resume").min_size(Vec2::new(60.0, 24.0))).on_hover_text("Resume").clicked() {
-                        tokio::spawn(async move {
-                            let _ = q_res.resume(&q_id_res).await;
-                        });
-                    }
-                }
-
-                ui.add_space(6.0);
-
-                // Status Badge
-                let (badge_text, badge_color) = match record.status.as_str() {
-                    "downloading" => ("DOWNLOADING", theme::CYAN_ACCENT),
-                    "completed" => ("COMPLETED", theme::EMERALD_SUCCESS),
-                    "paused" => ("PAUSED", theme::AMBER_WARNING),
-                    "failed" => ("FAILED", theme::RED_ERROR),
-                    _ => ("QUEUED", theme::TEXT_MUTED),
-                };
-
-                ui.label(egui::RichText::new(badge_text).size(10.5).color(badge_color).strong());
-            });
-        });
-
-        ui.add_space(6.0);
-
-        // Progress metrics & Visualizer
-        let live_prog = progress_map.get(&record.id);
-        let downloaded = live_prog.map(|p| p.downloaded_bytes).unwrap_or(record.downloaded_bytes);
-        let total = live_prog.and_then(|p| p.total_bytes).or(record.total_size);
-
-        let pct = match total {
-            Some(t) if t > 0 => ((downloaded as f64) / (t as f64) * 100.0).clamp(0.0, 100.0),
-            _ => if record.status == "completed" { 100.0 } else { 0.0 },
-        };
-
-        // Multi-segment progress visualizer bar (segmented: cyan active, emerald complete)
-        if let Some(prog) = live_prog {
-            if !prog.segments.is_empty() && prog.segments.len() > 1 {
-                ui.horizontal(|ui| {
-                    let total_width = ui.available_width();
-                    let num_segs = prog.segments.len() as f32;
-                    let seg_width = ((total_width - (num_segs - 1.0) * 2.0) / num_segs).max(3.0);
-
-                    for seg in &prog.segments {
-                        let seg_pct = (seg.progress_percent() / 100.0) as f32;
-                        let color = if seg.complete {
-                            theme::EMERALD_SUCCESS
-                        } else if seg_pct > 0.0 {
-                            theme::CYAN_ACCENT
-                        } else {
-                            theme::BORDER
-                        };
-
-                        ui.add(
-                            egui::ProgressBar::new(seg_pct)
-                                .desired_width(seg_width)
-                                .fill(color),
-                        );
-                    }
-                });
-            } else {
-                let bar_color = if record.status == "completed" {
-                    theme::EMERALD_SUCCESS
-                } else {
-                    theme::CYAN_ACCENT
-                };
-                ui.add(egui::ProgressBar::new((pct / 100.0) as f32).fill(bar_color));
-            }
-        } else {
-            let color = if record.status == "completed" {
-                theme::EMERALD_SUCCESS
-            } else {
-                theme::CYAN_ACCENT
-            };
-            ui.add(egui::ProgressBar::new((pct / 100.0) as f32).fill(color));
-        }
-
-        ui.add_space(4.0);
-
-        // Stats line: Size | Speed (EMA-smoothed) | ETA
-        ui.horizontal(|ui| {
-            let dl_str = SpeedTracker::format_bytes(downloaded);
-            let tot_str = total.map(SpeedTracker::format_bytes).unwrap_or_else(|| "Unknown".to_string());
-            ui.label(
-                egui::RichText::new(format!("{:.1}%  ({} / {})", pct, dl_str, tot_str))
-                    .size(11.0)
-                    .color(theme::TEXT_SECONDARY),
-            );
-
-            if let Some(prog) = live_prog {
-                let speed = ema_speeds.get(&record.id).copied().unwrap_or(prog.speed_bps);
-                if speed > 0.0 {
-                    ui.label(
-                        egui::RichText::new(format!("Speed: {}", SpeedTracker::format_speed(speed)))
-                            .size(11.0)
-                            .color(theme::TEXT_CYAN)
-                            .strong(),
-                    );
-                    ui.label(
-                        egui::RichText::new(format!("ETA: {}", SpeedTracker::format_eta(prog.eta_seconds)))
-                            .size(11.0)
-                            .color(theme::TEXT_MUTED),
-                    );
-                }
-            }
-        });
-    });
 }
 
 fn log_daemon(msg: &str) {

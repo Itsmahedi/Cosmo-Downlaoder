@@ -3,7 +3,7 @@
 
 #define MyAppName "Cosmo Downloader"
 #ifndef MyAppVersion
-#define MyAppVersion "1.14.0"
+#define MyAppVersion "1.15.0"
 #endif
 #define MyAppPublisher "Mahedi"
 #define MyAppExeName "CosmoDownloader.exe"

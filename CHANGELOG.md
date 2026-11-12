@@ -5,6 +5,17 @@ All notable changes to Cosmo Downloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.0] - 2026-11-12
+
+### Changed
+- **Desktop App UI System Overhaul (`crates/app/src/main.rs`):**
+  - Applied the `Cosmo-Downloader-UI-system.html` layout and interaction model across the main desktop window.
+  - Updated toolbar actions (`Add`, `Resume`, `Pause`, `Delete`, `Options`) to vertical icon-above-label `.tb` buttons with 1.5–1.7px stroke vector icons and crisp disabled states.
+  - Added borderless right-aligned theme toggle button (`draw_sun` / `draw_moon`) inside the menubar alongside `File`, `Downloads`, `View`, `Tools`, and `Help`.
+  - Streamlined the 200px left sidebar to Categories navigation (`All downloads`, `Programs`, `Video`, `Music`, `Documents`, `Archives`, plus `Other` when present) and moved status filtering into `View`.
+  - Refined the download table with `48px` rows, `3px` progress bar above percentage, row click selection, double-click to open completed files, and right-click context menu.
+  - Updated status bar metrics (`{count} items · {speed} MB/s` and `Cosmo Downloader v1.15.0 · © 2026 Mahedi`) and unified dialog/icon theme colors across light and dark modes.
+
 ## [1.12.0] - 2026-11-11
 
 ### Added

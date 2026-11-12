@@ -8,7 +8,7 @@ Available for **Windows 10/11** and **Linux (AppImage)**.
 
 ## ⚡ Key Features
 
-- **New Unified Design System**: Minimalist, professional steel/gray aesthetic matching `Cosmo downloader NEWWW.html`, with native light & dark themes, local Geist typography, and one-color vector line icons.
+- **New Unified Design System**: Minimalist, professional steel/gray aesthetic matching `Cosmo-Downloader-UI-system.html`, with native light & dark themes, local Geist typography, vertical `.tb` toolbar buttons, and one-color vector line icons.
 - **Blazing Speed & Multi-Segment Acceleration**: Dynamically segments large downloads into parallel threads to maximize network bandwidth saturation with resume capability.
 - **Columnar Download Table**: Responsive table showing checkbox selection, category icon, filename, size, progress bar with percentage, transfer speed, and status.
 - **Smart Video Interception & Shadow DOM Quality Picker**: Injects an isolated Shadow DOM download button on video players with a 176px quality menu (1080p, 720p, 480p, 360p, Audio only). Host website CSS cannot break it.
