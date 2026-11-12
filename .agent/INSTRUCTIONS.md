@@ -56,15 +56,15 @@ When writing or modifying code in this repository, keep in mind:
 
 5. GitHub Releases and Uploads
 Development happens in the private working repo. NEVER create releases, tags, or upload assets to the private working repo.
-ALL releases and uploads go ONLY to the public repo: Itsmahedi/Cosmo-Downlaoder with appropriate comprehensive but simple also good looking release notes
-Always pass --repo Itsmahedi/Cosmo-Downlaoder explicitly to every gh release command. gh defaults to the repo of the current directory, which is the private one.
+ALL releases and uploads go ONLY to the public repo: Itsmahedi/Cosmo-Downloader with appropriate comprehensive but simple also good looking release notes
+Always pass --repo Itsmahedi/Cosmo-Downloader explicitly to every gh release command. gh defaults to the repo of the current directory, which is the private one.
 Before running any upload, verify the target repo is the public one.
 Upload the updated Windows .exe and the updated browser extension (.zip) with each release.
 Keep the public repo focused on distributing the executable and release files only. Do not push source code or private project files to it.
 Example:
 
 gh release create vX.Y.Z \
-  --repo Itsmahedi/Cosmo-Downlaoder \
+  --repo Itsmahedi/Cosmo-Downloader \
   --title "Cosmo Downloader vX.Y.Z" \
   --notes-file RELEASE_NOTES.md \
   path/to/CosmoDownloader.exe path/to/extension.zip
