@@ -190,9 +190,17 @@ function attachCosmoDownloadButton(videoEl) {
   btn.setAttribute("aria-label", "Download Video");
 
   const logoSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  logoSvg.setAttribute("class", "cosmo-logo-icon");
-  logoSvg.setAttribute("viewBox", "0 0 16 16");
-  logoSvg.innerHTML = '<rect x="1.5" y="3" width="13" height="3.5" rx="1.75" fill="currentColor"/><rect x="1.5" y="9.5" width="7" height="3.5" rx="1.75" fill="currentColor" opacity=".55"/>';
+  logoSvg.setAttribute("class", "cosmo-download-icon cosmo-logo-icon");
+  logoSvg.setAttribute("viewBox", "0 0 24 24");
+  logoSvg.setAttribute("width", "15");
+  logoSvg.setAttribute("height", "15");
+  logoSvg.setAttribute("fill", "none");
+  logoSvg.setAttribute("stroke", "currentColor");
+  logoSvg.setAttribute("stroke-width", "2");
+  logoSvg.setAttribute("stroke-linecap", "round");
+  logoSvg.setAttribute("stroke-linejoin", "round");
+  logoSvg.setAttribute("aria-hidden", "true");
+  logoSvg.innerHTML = '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>';
 
   const btnText = document.createElement("span");
   btnText.className = "cosmo-btn-text";
