@@ -67,7 +67,8 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "icons/*"
+        "icons/*",
+        "fonts/*"
       ],
       "matches": [
         "<all_urls>"

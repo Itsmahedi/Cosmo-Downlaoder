@@ -8,7 +8,12 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "rustget@downloader.addon",
-      "strict_min_version": "109.0"
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
     }
   },
   "icons": {
@@ -31,7 +36,9 @@
     "http://127.0.0.1:42424/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "scripts": [
+      "background.js"
+    ]
   },
   "action": {
     "default_icon": {
@@ -60,7 +67,8 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "icons/*"
+        "icons/*",
+        "fonts/*"
       ],
       "matches": [
         "<all_urls>"

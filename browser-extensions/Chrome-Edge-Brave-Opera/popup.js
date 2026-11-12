@@ -1,5 +1,5 @@
 /**
- * ✦ Cosmo Downloader v1.11 — Popup Script
+ * Cosmo Downloader v1.12 — Popup Script
  */
 
 "use strict";
@@ -7,10 +7,6 @@
 const statusDot = document.getElementById("statusDot");
 const statusBar = document.getElementById("statusBar");
 const statusText = document.getElementById("statusText");
-const launchBtn = document.getElementById("launchBtn");
-const launchSpinner = document.getElementById("launchSpinner");
-const launchBtnText = document.getElementById("launchBtnText");
-const statusError = document.getElementById("statusError");
 const toggleIntercept = document.getElementById("toggleIntercept");
 const interceptedCountEl = document.getElementById("interceptedCount");
 const urlInput = document.getElementById("urlInput");
@@ -19,7 +15,31 @@ const urlFeedback = document.getElementById("urlFeedback");
 
 const runtime = typeof browser !== "undefined" ? browser : chrome;
 
-let isLaunching = false;
+/**
+ * Theme support: read stored preference and apply
+ */
+function applyTheme(theme) {
+  if (theme === "dark" || theme === "light") {
+    document.documentElement.dataset.theme = theme;
+  } else {
+    delete document.documentElement.dataset.theme;
+  }
+}
+
+// Load saved theme
+try {
+  runtime.storage.local.get("theme", (result) => {
+    if (runtime.runtime.lastError) return;
+    applyTheme(result.theme);
+  });
+
+  // Listen for theme changes
+  runtime.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.theme) {
+      applyTheme(changes.theme.newValue);
+    }
+  });
+} catch (_) {}
 
 /**
  * Updates UI based on accurate 3-state detection:
@@ -28,12 +48,10 @@ let isLaunching = false;
  * 3. Disconnected (Red): Native host is not installed or registered
  */
 function updateStatus() {
-  if (isLaunching) return;
-
   runtime.runtime.sendMessage({ action: "getStatus" }, (response) => {
     const lastErr = runtime.runtime.lastError;
     if (lastErr || !response) {
-      applyState("disconnected", "Native host not registered");
+      applyState("disconnected", "Disconnected");
       return;
     }
 
@@ -43,70 +61,35 @@ function updateStatus() {
     interceptedCountEl.textContent = response.interceptedCount || 0;
 
     if (response.appRunning) {
-      applyState("connected", "Connected to Cosmo Downloader \u2726");
+      applyState("connected", "Connected to Cosmo Downloader");
     } else if (response.hostInstalled) {
       applyState("amber", "Cosmo Downloader is closed");
     } else {
-      applyState("disconnected", "Native host not registered");
+      applyState("disconnected", "Disconnected");
     }
   });
 }
 
 function applyState(state, text) {
-  statusDot.className = "status-dot " + state;
-  statusBar.className = "status-bar " + state;
+  // Update dot
+  statusDot.className = "dot " + state;
+
+  // Update connection banner
+  if (state === "connected") {
+    statusBar.className = "conn";
+  } else {
+    statusBar.className = "conn " + state;
+  }
+
   statusText.textContent = text;
 
   if (state === "connected") {
-    statusDot.title = "Connected to Cosmo Downloader Engine";
-    if (launchBtn) launchBtn.style.display = "none";
-    if (statusError) statusError.style.display = "none";
+    statusDot.title = "Connected to Cosmo Downloader";
   } else if (state === "amber") {
-    statusDot.title = "Cosmo Downloader is closed — click Launch App to start";
-    if (launchBtn) {
-      launchBtn.style.display = "inline-flex";
-      launchBtn.disabled = false;
-      if (launchSpinner) launchSpinner.style.display = "none";
-      if (launchBtnText) launchBtnText.textContent = "\u25B6 Launch App";
-    }
+    statusDot.title = "Cosmo Downloader is closed";
   } else {
-    statusDot.title = "Host bridge not installed";
-    if (launchBtn) launchBtn.style.display = "none";
+    statusDot.title = "Disconnected";
   }
-}
-
-/**
- * Launch App Button Handler with spinner & timeout handling
- */
-if (launchBtn) {
-  launchBtn.addEventListener("click", () => {
-    if (isLaunching) return;
-    isLaunching = true;
-
-    launchBtn.disabled = true;
-    if (launchSpinner) launchSpinner.style.display = "inline-block";
-    if (launchBtnText) launchBtnText.textContent = "Starting...";
-    if (statusError) statusError.style.display = "none";
-
-    runtime.runtime.sendMessage({ action: "launchApp" }, (res) => {
-      isLaunching = false;
-      if (res && res.success) {
-        applyState("connected", "Connected to Cosmo Downloader \u2726");
-      } else {
-        const errMsg = res?.error || "Launch timed out. Start Cosmo Downloader manually.";
-        if (statusError) {
-          statusError.textContent = errMsg;
-          statusError.style.display = "block";
-        }
-        applyState("amber", "Failed to start app");
-        if (launchBtn) {
-          launchBtn.disabled = false;
-          if (launchSpinner) launchSpinner.style.display = "none";
-          if (launchBtnText) launchBtnText.textContent = "\u25B6 Retry Launch";
-        }
-      }
-    });
-  });
 }
 
 /**
@@ -147,12 +130,12 @@ function submitUrl() {
 
   runtime.runtime.sendMessage({ action: "addUrl", url: urlStr }, (result) => {
     if (result && result.success) {
-      urlFeedback.textContent = "\u2726 Sent to CosmoDownloader!";
+      urlFeedback.textContent = "Sent to Cosmo Downloader";
       urlFeedback.className = "url-feedback success";
       urlInput.value = "";
       updateStatus();
     } else {
-      urlFeedback.textContent = "Failed — is CosmoDownloader running?";
+      urlFeedback.textContent = "Failed — is Cosmo Downloader running?";
       urlFeedback.className = "url-feedback error";
     }
   });

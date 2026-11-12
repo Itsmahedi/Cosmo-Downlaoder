@@ -29,25 +29,74 @@ const APP_TITLE: &str = concat!("Cosmo Downloader v", env!("CARGO_PKG_VERSION"))
 pub mod theme {
     use eframe::egui::Color32;
 
-    pub const BG_APP: Color32 = Color32::from_rgb(0x0E, 0x0F, 0x1D);       // #0E0F1D Deep space dark
-    pub const BG_PANEL: Color32 = Color32::from_rgb(0x14, 0x16, 0x2A);     // #14162A Sidebar / top panel
-    pub const BG_CARD: Color32 = Color32::from_rgb(0x1A, 0x1C, 0x36);      // #1A1C36 Card background
-    pub const BG_CARD_HOVER: Color32 = Color32::from_rgb(0x22, 0x24, 0x44);// Card hover
-    pub const BORDER: Color32 = Color32::from_rgb(0x2D, 0x30, 0x56);       // #2D3056 Subtle border
-    pub const BORDER_FOCUS: Color32 = Color32::from_rgb(0x00, 0xF0, 0xFF); // Cyan focus / active border
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ThemeMode { Light, Dark }
 
-    // Accents
-    pub const CYAN_ACCENT: Color32 = Color32::from_rgb(0x00, 0xF0, 0xFF);  // #00F0FF Active downloads / speed
-    pub const PURPLE_ACCENT: Color32 = Color32::from_rgb(0xA8, 0x55, 0xF7);// #A855F7 Headings / badges
-    pub const EMERALD_SUCCESS: Color32 = Color32::from_rgb(0x22, 0xC5, 0x5E);// #22C55E Completed
-    pub const AMBER_WARNING: Color32 = Color32::from_rgb(0xF5, 0x9E, 0x0B);// #F59E0B Paused
-    pub const RED_ERROR: Color32 = Color32::from_rgb(0xEF, 0x44, 0x44);    // #EF4444 Failed / Delete
+    impl ThemeMode {
+        pub fn palette(self) -> &'static Palette { match self { Self::Light => &LIGHT, Self::Dark => &DARK } }
+        pub fn toggle(self) -> Self { match self { Self::Light => Self::Dark, Self::Dark => Self::Light } }
+        pub fn label(self) -> &'static str { match self { Self::Light => "light", Self::Dark => "dark" } }
+        pub fn from_label(s: &str) -> Self { if s == "light" { Self::Light } else { Self::Dark } }
+    }
 
-    // Text colors (WCAG AA compliant against #0E0F1D / #1A1C36)
-    pub const TEXT_PRIMARY: Color32 = Color32::from_rgb(0xF8, 0xFA, 0xFC);   // #F8FAFC White-slate
-    pub const TEXT_SECONDARY: Color32 = Color32::from_rgb(0x94, 0xA3, 0xB8); // #94A3B8 Slate-400
-    pub const TEXT_MUTED: Color32 = Color32::from_rgb(0x64, 0x74, 0x8B);     // #64748B Slate-500
-    pub const TEXT_CYAN: Color32 = Color32::from_rgb(0x38, 0xBD, 0xF8);      // Light cyan text
+    #[derive(Clone, Copy)]
+    pub struct Palette {
+        pub bg: Color32,
+        pub surface: Color32,
+        pub raise: Color32,
+        pub line: Color32,
+        pub text: Color32,
+        pub muted: Color32,
+        pub accent: Color32,
+        pub on_accent: Color32,
+        pub accent_soft: Color32,
+        pub danger: Color32,
+    }
+
+    pub const LIGHT: Palette = Palette {
+        bg:          Color32::from_rgb(0xf3, 0xf4, 0xf6),
+        surface:     Color32::from_rgb(0xff, 0xff, 0xff),
+        raise:       Color32::from_rgb(0xec, 0xee, 0xf1),
+        line:        Color32::from_rgba_premultiplied(20, 24, 30, 26),
+        text:        Color32::from_rgb(0x1b, 0x1d, 0x21),
+        muted:       Color32::from_rgb(0x64, 0x6b, 0x75),
+        accent:      Color32::from_rgb(0x44, 0x54, 0x6a),
+        on_accent:   Color32::from_rgb(0xff, 0xff, 0xff),
+        accent_soft: Color32::from_rgba_premultiplied(68, 84, 106, 31),
+        danger:      Color32::from_rgb(0xd9, 0x30, 0x25),
+    };
+
+    pub const DARK: Palette = Palette {
+        bg:          Color32::from_rgb(0x1a, 0x1c, 0x20),
+        surface:     Color32::from_rgb(0x22, 0x25, 0x2a),
+        raise:       Color32::from_rgb(0x2b, 0x2f, 0x35),
+        line:        Color32::from_rgba_premultiplied(255, 255, 255, 20),
+        text:        Color32::from_rgb(0xe6, 0xe8, 0xeb),
+        muted:       Color32::from_rgb(0x90, 0x97, 0xa1),
+        accent:      Color32::from_rgb(0x8f, 0xa6, 0xc4),
+        on_accent:   Color32::from_rgb(0x0f, 0x1a, 0x2a),
+        accent_soft: Color32::from_rgba_premultiplied(143, 166, 196, 41),
+        danger:      Color32::from_rgb(0xd9, 0x30, 0x25),
+    };
+
+    // Compatibility aliases routing to DARK theme by default
+    pub const BG_APP: Color32 = DARK.bg;
+    pub const BG_PANEL: Color32 = DARK.surface;
+    pub const BG_CARD: Color32 = DARK.surface;
+    pub const BG_CARD_HOVER: Color32 = DARK.raise;
+    pub const BORDER: Color32 = DARK.line;
+    pub const BORDER_FOCUS: Color32 = DARK.accent;
+
+    pub const CYAN_ACCENT: Color32 = DARK.accent;
+    pub const PURPLE_ACCENT: Color32 = DARK.accent;
+    pub const EMERALD_SUCCESS: Color32 = Color32::from_rgb(0x22, 0xC5, 0x5E);
+    pub const AMBER_WARNING: Color32 = Color32::from_rgb(0xF5, 0x9E, 0x0B);
+    pub const RED_ERROR: Color32 = DARK.danger;
+
+    pub const TEXT_PRIMARY: Color32 = DARK.text;
+    pub const TEXT_SECONDARY: Color32 = DARK.muted;
+    pub const TEXT_MUTED: Color32 = DARK.muted;
+    pub const TEXT_CYAN: Color32 = DARK.accent;
 }
 
 mod icons {
@@ -165,15 +214,15 @@ mod icons {
     }
 }
 
-fn draw_category_icon(painter: &Painter, rect: Rect, category: &str) {
+fn draw_category_icon(painter: &Painter, rect: Rect, category: &str, color: Color32) {
     let cat_lower = category.trim().to_ascii_lowercase();
     match cat_lower.as_str() {
-        "video" => icons::draw_video(painter, rect, theme::CYAN_ACCENT),
-        "music" => icons::draw_music(painter, rect, theme::PURPLE_ACCENT),
-        "documents" => icons::draw_documents(painter, rect, theme::TEXT_CYAN),
-        "compressed" => icons::draw_compressed(painter, rect, theme::AMBER_WARNING),
-        "programs" => icons::draw_programs(painter, rect, theme::EMERALD_SUCCESS),
-        _ => icons::draw_other(painter, rect, theme::TEXT_SECONDARY),
+        "video" => icons::draw_video(painter, rect, color),
+        "music" => icons::draw_music(painter, rect, color),
+        "documents" => icons::draw_documents(painter, rect, color),
+        "compressed" => icons::draw_compressed(painter, rect, color),
+        "programs" => icons::draw_programs(painter, rect, color),
+        _ => icons::draw_other(painter, rect, color),
     }
 }
 
@@ -183,18 +232,19 @@ fn sidebar_row<T: PartialEq + Clone>(
     val: T,
     name: &str,
     count: usize,
+    palette: &theme::Palette,
     draw_icon: impl FnOnce(&Painter, Rect, Color32),
 ) {
     let is_selected = *current == val;
-    let row_height = 30.0;
+    let row_height = 32.0;
     let (rect, response) = ui.allocate_exact_size(Vec2::new(ui.available_width(), row_height), egui::Sense::click());
     if response.clicked() {
         *current = val;
     }
     let bg = if is_selected {
-        theme::BORDER
+        palette.accent_soft
     } else if response.hovered() {
-        theme::BG_CARD_HOVER
+        palette.raise
     } else {
         Color32::TRANSPARENT
     };
@@ -202,32 +252,24 @@ fn sidebar_row<T: PartialEq + Clone>(
 
     // Draw icon at left
     let icon_rect = Rect::from_center_size(pos2(rect.left() + 16.0, rect.center().y), Vec2::splat(14.0));
-    let icon_color = if is_selected { theme::CYAN_ACCENT } else { theme::TEXT_SECONDARY };
+    let icon_color = if is_selected { palette.accent } else { palette.muted };
     draw_icon(ui.painter(), icon_rect, icon_color);
 
     // Text label
-    let text_color = if is_selected { theme::TEXT_PRIMARY } else { theme::TEXT_SECONDARY };
-    let text_pos = pos2(rect.left() + 32.0, rect.center().y - 6.5);
-    ui.painter().text(text_pos, egui::Align2::LEFT_TOP, name, egui::FontId::proportional(12.5), text_color);
+    let text_color = if is_selected { palette.accent } else { palette.muted };
+    let font_id = if is_selected {
+        egui::FontId::proportional(13.0)
+    } else {
+        egui::FontId::proportional(13.0)
+    };
+    let text_pos = pos2(rect.left() + 32.0, rect.center().y - 7.0);
+    ui.painter().text(text_pos, egui::Align2::LEFT_TOP, name, font_id, text_color);
 
-    // Count badge pill at right
+    // Count at right (tabular nums)
     let badge_str = count.to_string();
-    let badge_bg = if is_selected {
-        Color32::from_rgb(0, 240, 255)
-    } else {
-        Color32::from_rgb(32, 35, 62)
-    };
-    let badge_text_color = if is_selected {
-        theme::BG_APP
-    } else {
-        theme::TEXT_SECONDARY
-    };
-    let galley = ui.painter().layout_no_wrap(badge_str, egui::FontId::proportional(10.5), badge_text_color);
-    let pill_w = (galley.size().x + 10.0).max(18.0);
-    let pill_h = 16.0;
-    let pill_rect = Rect::from_center_size(pos2(rect.right() - 14.0, rect.center().y), Vec2::new(pill_w, pill_h));
-    ui.painter().rect_filled(pill_rect, Rounding::same(8.0), badge_bg);
-    ui.painter().galley(pos2(pill_rect.center().x - galley.size().x / 2.0, pill_rect.center().y - galley.size().y / 2.0), galley, badge_text_color);
+    let badge_text_color = if is_selected { palette.accent } else { palette.muted };
+    let galley = ui.painter().layout_no_wrap(badge_str, egui::FontId::proportional(12.0), badge_text_color);
+    ui.painter().galley(pos2(rect.right() - galley.size().x - 12.0, rect.center().y - galley.size().y / 2.0), galley, badge_text_color);
 }
 
 #[cfg(windows)]
@@ -826,6 +868,8 @@ struct CosmoDownloaderApp {
     selected_category: CategoryFilter,
     counts: AppCounts,
     confirm_delete_id: Option<String>,
+    theme_mode: theme::ThemeMode,
+    selected_row_ids: std::collections::HashSet<String>,
 
     // Dialogs & Popup Mode
     is_popup_mode: bool,
@@ -883,15 +927,27 @@ struct CosmoDownloaderApp {
 
 impl CosmoDownloaderApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // Setup Cosmic Dark Theme using plan tokens
-        let mut visuals = egui::Visuals::dark();
-        visuals.window_rounding = Rounding::same(12.0);
-        visuals.window_fill = theme::BG_APP;
-        visuals.panel_fill = theme::BG_PANEL;
-        visuals.widgets.noninteractive.bg_fill = theme::BG_CARD;
-        visuals.widgets.inactive.bg_fill = theme::BG_CARD_HOVER;
-        visuals.widgets.hovered.bg_fill = theme::BORDER;
-        visuals.widgets.active.bg_fill = theme::CYAN_ACCENT;
+        let db = Database::open_default().unwrap_or_else(|_| Database::open_in_memory().unwrap());
+        let saved_theme = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                db.get_setting("ui_theme_mode").await.ok().flatten().map(|v| theme::ThemeMode::from_label(&v)).unwrap_or(theme::ThemeMode::Dark)
+            })
+        });
+
+        // Setup Visuals according to saved theme tokens
+        let p = saved_theme.palette();
+        let mut visuals = if saved_theme == theme::ThemeMode::Dark {
+            egui::Visuals::dark()
+        } else {
+            egui::Visuals::light()
+        };
+        visuals.window_rounding = Rounding::same(10.0);
+        visuals.window_fill = p.surface;
+        visuals.panel_fill = p.bg;
+        visuals.widgets.noninteractive.bg_fill = p.surface;
+        visuals.widgets.inactive.bg_fill = p.raise;
+        visuals.widgets.hovered.bg_fill = p.accent_soft;
+        visuals.widgets.active.bg_fill = p.accent;
         cc.egui_ctx.set_visuals(visuals);
 
         let mut is_standalone_popup = false;
@@ -924,7 +980,6 @@ impl CosmoDownloaderApp {
 
         let is_popup_arg = std::env::args().any(|a| a == "--popup") || is_standalone_popup;
 
-        let db = Database::open_default().unwrap_or_else(|_| Database::open_in_memory().unwrap());
         let (event_tx, event_rx) = mpsc::channel(128);
         let queue = Arc::new(QueueManager::new(db.clone(), 3, 0, event_tx));
 
@@ -1088,6 +1143,8 @@ impl CosmoDownloaderApp {
             selected_category: saved_category,
             counts: initial_counts,
             confirm_delete_id: None,
+            theme_mode: saved_theme,
+            selected_row_ids: std::collections::HashSet::new(),
             is_popup_mode: is_popup_arg,
             is_standalone_popup,
             standalone_popup_file,
@@ -2130,25 +2187,99 @@ impl eframe::App for CosmoDownloaderApp {
             return;
         }
 
-        // Top Toolbar
+        // Dynamic theme synchronization
+        let palette = *self.theme_mode.palette();
+        let mut visuals = if self.theme_mode == theme::ThemeMode::Dark {
+            egui::Visuals::dark()
+        } else {
+            egui::Visuals::light()
+        };
+        visuals.window_rounding = Rounding::same(10.0);
+        visuals.window_fill = palette.surface;
+        visuals.panel_fill = palette.surface;
+        visuals.override_text_color = Some(palette.text);
+        visuals.widgets.noninteractive.bg_fill = palette.surface;
+        visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0_f32, palette.text);
+        visuals.widgets.inactive.bg_fill = palette.raise;
+        visuals.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, palette.text);
+        visuals.widgets.hovered.bg_fill = palette.accent_soft;
+        visuals.widgets.hovered.fg_stroke = Stroke::new(1.0_f32, palette.accent);
+        visuals.widgets.active.bg_fill = palette.accent;
+        visuals.widgets.active.fg_stroke = Stroke::new(1.0_f32, palette.on_accent);
+        ctx.set_visuals(visuals);
+
+        // Top Titlebar & Menu & Toolbar
         egui::TopBottomPanel::top("top_panel")
-            .frame(egui::Frame::none().fill(theme::BG_PANEL).inner_margin(Margin::same(12.0)))
+            .frame(egui::Frame::none().fill(palette.surface).stroke(Stroke::new(1.0_f32, palette.line)))
             .show(ctx, |ui| {
+                // Window Title Bar (custom styled row)
                 ui.horizontal(|ui| {
-                    ui.heading(
-                        egui::RichText::new(APP_TITLE)
-                            .strong()
-                            .color(theme::CYAN_ACCENT),
-                    );
-                    ui.add_space(16.0);
+                    ui.add_space(4.0);
+                    let (logo_rect, _) = ui.allocate_exact_size(Vec2::splat(18.0), egui::Sense::hover());
+                    icons::draw_all(ui.painter(), logo_rect, palette.accent);
+                    ui.add_space(4.0);
+                    ui.label(egui::RichText::new(format!("Cosmo Downloader v{}", env!("CARGO_PKG_VERSION"))).size(12.5).strong().color(palette.text));
+                    
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        // Close [X] with red hover
+                        let close_resp = ui.add(egui::Button::new(egui::RichText::new("✕").size(11.0)).frame(false));
+                        if close_resp.hovered() {
+                            ui.painter().rect_filled(close_resp.rect.expand2(Vec2::new(4.0, 2.0)), Rounding::same(4.0), palette.danger);
+                        }
+                        if close_resp.clicked() {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                        }
 
-                    let btn_size = Vec2::new(95.0, 30.0);
+                        // Maximize [+]
+                        if ui.add(egui::Button::new(egui::RichText::new("□").size(11.0)).frame(false)).clicked() {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
+                        }
 
-                    if ui.add(egui::Button::new("+ Add URL").min_size(btn_size)).clicked() {
+                        // Minimize [-]
+                        if ui.add(egui::Button::new(egui::RichText::new("—").size(11.0)).frame(false)).clicked() {
+                            ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                        }
+                    });
+                });
+
+                ui.add_space(2.0);
+                ui.separator();
+                ui.add_space(2.0);
+
+                // Menu bar: File, Downloads, View, Tools, Help + Theme Toggle
+                ui.horizontal(|ui| {
+                    for menu_name in ["File", "Downloads", "View", "Tools", "Help"] {
+                        let _ = ui.add(egui::Button::new(egui::RichText::new(menu_name).size(12.5)).frame(false));
+                    }
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let theme_label = if self.theme_mode == theme::ThemeMode::Dark { "☀ Light mode" } else { "☾ Dark mode" };
+                        if ui.add(egui::Button::new(egui::RichText::new(theme_label).size(12.0).color(palette.muted))).clicked() {
+                            self.theme_mode = self.theme_mode.toggle();
+                            let q = Arc::clone(&self.queue);
+                            let t_str = self.theme_mode.label();
+                            tokio::spawn(async move {
+                                let _ = q.db().set_setting("ui_theme_mode", t_str).await;
+                            });
+                        }
+                    });
+                });
+
+                ui.add_space(2.0);
+                ui.separator();
+                ui.add_space(4.0);
+
+                // Toolbar: Add URL, Pause All, Resume All, Delete (enabled only when selection), Settings
+                ui.horizontal(|ui| {
+                    let btn_size = Vec2::new(76.0, 32.0);
+
+                    if ui.add(egui::Button::new(egui::RichText::new("+ Add URL").size(12.0)).min_size(btn_size)).clicked() {
                         self.show_add_dialog = true;
                     }
 
-                    if ui.add(egui::Button::new("Pause All").min_size(btn_size)).clicked() {
+                    ui.separator();
+
+                    if ui.add(egui::Button::new(egui::RichText::new("⏸ Pause All").size(12.0)).min_size(btn_size)).clicked() {
                         let q = Arc::clone(&self.queue);
                         let ids: Vec<String> = self.downloads.iter()
                             .filter(|d| d.status == "downloading" || d.status == "queued")
@@ -2161,7 +2292,7 @@ impl eframe::App for CosmoDownloaderApp {
                         });
                     }
 
-                    if ui.add(egui::Button::new("Resume All").min_size(btn_size)).clicked() {
+                    if ui.add(egui::Button::new(egui::RichText::new("▶ Resume All").size(12.0)).min_size(btn_size)).clicked() {
                         let q = Arc::clone(&self.queue);
                         let ids: Vec<String> = self.downloads.iter()
                             .filter(|d| d.status == "paused" || d.status == "failed")
@@ -2174,47 +2305,60 @@ impl eframe::App for CosmoDownloaderApp {
                         });
                     }
 
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui.add(egui::Button::new("Settings").min_size(Vec2::new(80.0, 30.0))).clicked() {
-                            self.show_settings_dialog = true;
-                        }
+                    let has_selection = !self.selected_row_ids.is_empty();
+                    let del_btn = egui::Button::new(egui::RichText::new("🗑 Delete").size(12.0)).min_size(btn_size);
+                    if ui.add_enabled(has_selection, del_btn).clicked() {
+                        let q = Arc::clone(&self.queue);
+                        let ids: Vec<String> = self.selected_row_ids.iter().cloned().collect();
+                        tokio::spawn(async move {
+                            for id in ids {
+                                let _ = q.remove(&id, false).await;
+                            }
+                        });
+                        self.selected_row_ids.clear();
+                    }
 
-                        // Aggregate live speed readout
+                    ui.separator();
+
+                    if ui.add(egui::Button::new(egui::RichText::new("⚙ Settings").size(12.0)).min_size(btn_size)).clicked() {
+                        self.show_settings_dialog = true;
+                    }
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         let total_speed: f64 = self.active_progress.values().map(|p| p.speed_bps).sum();
                         if total_speed > 0.0 {
-                            let speed_frame = egui::Frame::none()
-                                .fill(theme::BG_CARD)
-                                .stroke(Stroke::new(1.0_f32, theme::BORDER))
-                                .rounding(Rounding::same(15.0))
-                                .inner_margin(Margin::symmetric(10.0, 5.0));
-
-                            speed_frame.show(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    let (gauge_rect, _) = ui.allocate_exact_size(Vec2::splat(12.0), egui::Sense::hover());
-                                    icons::draw_sparkle(ui.painter(), gauge_rect, theme::CYAN_ACCENT);
-                                    ui.label(
-                                        egui::RichText::new(format!("Speed: {}", SpeedTracker::format_speed(total_speed)))
-                                            .color(theme::CYAN_ACCENT)
-                                            .strong()
-                                            .size(11.5),
-                                    );
-                                });
-                            });
+                            ui.label(
+                                egui::RichText::new(format!("Speed: {}", SpeedTracker::format_speed(total_speed)))
+                                    .color(palette.accent)
+                                    .strong()
+                                    .size(11.5),
+                            );
                         }
                     });
                 });
+                ui.add_space(4.0);
             });
 
-        // Bottom Status & Credits Bar
+        // Bottom Status Bar
         egui::TopBottomPanel::bottom("bottom_bar")
-            .frame(egui::Frame::none().fill(theme::BG_APP).inner_margin(Margin::same(8.0)))
+            .frame(egui::Frame::none().fill(palette.raise).stroke(Stroke::new(1.0_f32, palette.line)).inner_margin(Margin::symmetric(14.0, 6.0)))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
+                    let total_speed: f64 = self.active_progress.values().map(|p| p.speed_bps).sum();
+                    let speed_mb = total_speed / (1024.0 * 1024.0);
                     ui.label(
-                        egui::RichText::new(format!("{}  |  Lead Architect & Developer: Mahedi  |  32-Segment Warp Engine Active", APP_TITLE))
-                            .size(11.0)
-                            .color(Color32::from_rgb(147, 197, 253)),
+                        egui::RichText::new(format!("{} items · {:.1} MB/s · Warp Engine active", self.downloads.len(), speed_mb))
+                            .size(11.5)
+                            .color(palette.muted),
                     );
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        ui.label(
+                            egui::RichText::new(format!("Cosmo Downloader v{} · © 2026 Mahedi", env!("CARGO_PKG_VERSION")))
+                                .size(11.5)
+                                .color(palette.muted),
+                        );
+                    });
                 });
             });
 
@@ -2225,27 +2369,27 @@ impl eframe::App for CosmoDownloaderApp {
         egui::SidePanel::left("side_panel")
             .resizable(false)
             .default_width(190.0)
-            .frame(egui::Frame::none().fill(theme::BG_PANEL).inner_margin(Margin::same(12.0)))
+            .frame(egui::Frame::none().fill(palette.bg).stroke(Stroke::new(1.0_f32, palette.line)).inner_margin(Margin::same(12.0)))
             .show(ctx, |ui| {
-                ui.label(egui::RichText::new("STATUS").size(11.0).color(theme::PURPLE_ACCENT).strong());
-                ui.add_space(6.0);
+                ui.label(egui::RichText::new("Status").size(12.0).color(palette.muted).strong());
+                ui.add_space(4.0);
 
-                sidebar_row(ui, &mut self.selected_tab, FilterTab::All, "All Downloads", self.counts.status_all, icons::draw_all);
-                sidebar_row(ui, &mut self.selected_tab, FilterTab::Downloading, "Downloading", self.counts.status_downloading, icons::draw_play);
-                sidebar_row(ui, &mut self.selected_tab, FilterTab::Completed, "Completed", self.counts.status_completed, icons::draw_folder);
-                sidebar_row(ui, &mut self.selected_tab, FilterTab::Paused, "Paused", self.counts.status_paused, icons::draw_pause);
+                sidebar_row(ui, &mut self.selected_tab, FilterTab::All, "All Downloads", self.counts.status_all, &palette, icons::draw_all);
+                sidebar_row(ui, &mut self.selected_tab, FilterTab::Downloading, "Downloading", self.counts.status_downloading, &palette, icons::draw_play);
+                sidebar_row(ui, &mut self.selected_tab, FilterTab::Completed, "Completed", self.counts.status_completed, &palette, icons::draw_folder);
+                sidebar_row(ui, &mut self.selected_tab, FilterTab::Paused, "Paused", self.counts.status_paused, &palette, icons::draw_pause);
 
-                ui.add_space(20.0);
-                ui.label(egui::RichText::new("CATEGORIES").size(11.0).color(theme::PURPLE_ACCENT).strong());
-                ui.add_space(6.0);
+                ui.add_space(16.0);
+                ui.label(egui::RichText::new("Categories").size(12.0).color(palette.muted).strong());
+                ui.add_space(4.0);
 
-                sidebar_row(ui, &mut self.selected_category, CategoryFilter::All, "All Categories", self.counts.cat_all, icons::draw_all);
-                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Video, "Video", self.counts.cat_video, icons::draw_video);
-                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Music, "Music", self.counts.cat_music, icons::draw_music);
-                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Documents, "Documents", self.counts.cat_documents, icons::draw_documents);
-                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Compressed, "Compressed", self.counts.cat_compressed, icons::draw_compressed);
-                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Programs, "Programs", self.counts.cat_programs, icons::draw_programs);
-                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Other, "Other", self.counts.cat_other, icons::draw_other);
+                sidebar_row(ui, &mut self.selected_category, CategoryFilter::All, "All Categories", self.counts.cat_all, &palette, icons::draw_all);
+                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Video, "Video", self.counts.cat_video, &palette, icons::draw_video);
+                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Music, "Music", self.counts.cat_music, &palette, icons::draw_music);
+                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Documents, "Documents", self.counts.cat_documents, &palette, icons::draw_documents);
+                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Compressed, "Compressed", self.counts.cat_compressed, &palette, icons::draw_compressed);
+                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Programs, "Programs", self.counts.cat_programs, &palette, icons::draw_programs);
+                sidebar_row(ui, &mut self.selected_category, CategoryFilter::Other, "Other", self.counts.cat_other, &palette, icons::draw_other);
             });
 
         // Persist tab & category when changed
@@ -2277,7 +2421,7 @@ impl eframe::App for CosmoDownloaderApp {
             });
         }
 
-        // Main Content Area (Download Table)
+        // Main Content Area (Columnar Download Table)
         egui::CentralPanel::default().show(ctx, |ui| {
             let filtered_downloads: Vec<&DownloadRecord> = self.downloads.iter().filter(|d| {
                 let status_match = match self.selected_tab {
@@ -2293,47 +2437,195 @@ impl eframe::App for CosmoDownloaderApp {
             if filtered_downloads.is_empty() {
                 ui.vertical_centered(|ui| {
                     ui.add_space(80.0);
-                    let (sparkle_rect, _) = ui.allocate_exact_size(Vec2::new(48.0, 48.0), egui::Sense::hover());
-                    icons::draw_sparkle(ui.painter(), sparkle_rect, theme::PURPLE_ACCENT);
+                    let (sparkle_rect, _) = ui.allocate_exact_size(Vec2::new(36.0, 36.0), egui::Sense::hover());
+                    icons::draw_sparkle(ui.painter(), sparkle_rect, palette.muted);
                     ui.add_space(12.0);
                     ui.label(
                         egui::RichText::new("No downloads in this view")
                             .size(16.0)
-                            .color(theme::TEXT_PRIMARY)
+                            .color(palette.text)
                             .strong(),
                     );
                     ui.add_space(4.0);
                     ui.label(
                         egui::RichText::new("Downloads captured from browser extensions or clipboard appear here.")
                             .size(12.0)
-                            .color(theme::TEXT_SECONDARY),
+                            .color(palette.muted),
                     );
                     ui.add_space(16.0);
                     if ui.add(
                         egui::Button::new(
                             egui::RichText::new("+ Add Download URL")
                                 .size(13.0)
-                                .color(Color32::WHITE)
+                                .color(palette.on_accent)
                                 .strong(),
                         )
-                        .fill(theme::CYAN_ACCENT)
+                        .fill(palette.accent)
                         .min_size(Vec2::new(160.0, 34.0)),
                     ).clicked() {
                         self.show_add_dialog = true;
                     }
                 });
             } else {
+                // Table Header
+                let row_width = ui.available_width();
+                let col_check_w = 36.0;
+                let col_size_w = 85.0;
+                let col_prog_w = 160.0;
+                let col_speed_w = 95.0;
+                let col_status_w = 100.0;
+                let col_name_w = (row_width - (col_check_w + col_size_w + col_prog_w + col_speed_w + col_status_w + 32.0)).max(120.0);
+
+                let all_selected = !filtered_downloads.is_empty() && filtered_downloads.iter().all(|d| self.selected_row_ids.contains(&d.id));
+                let mut header_check = all_selected;
+
+                ui.horizontal(|ui| {
+                    ui.add_space(8.0);
+                    if ui.add_sized(Vec2::new(col_check_w, 24.0), egui::Checkbox::without_text(&mut header_check)).changed() {
+                        if header_check {
+                            for d in &filtered_downloads {
+                                self.selected_row_ids.insert(d.id.clone());
+                            }
+                        } else {
+                            self.selected_row_ids.clear();
+                        }
+                    }
+
+                    ui.add_sized(Vec2::new(col_name_w, 24.0), egui::Label::new(egui::RichText::new("File name").size(12.0).color(palette.muted)));
+                    ui.add_sized(Vec2::new(col_size_w, 24.0), egui::Label::new(egui::RichText::new("Size").size(12.0).color(palette.muted)));
+                    ui.add_sized(Vec2::new(col_prog_w, 24.0), egui::Label::new(egui::RichText::new("Progress").size(12.0).color(palette.muted)));
+                    ui.add_sized(Vec2::new(col_speed_w, 24.0), egui::Label::new(egui::RichText::new("Speed").size(12.0).color(palette.muted)));
+                    ui.add_sized(Vec2::new(col_status_w, 24.0), egui::Label::new(egui::RichText::new("Status").size(12.0).color(palette.muted)));
+                });
+
+                ui.separator();
+
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     for record in filtered_downloads {
-                        render_download_card(
-                            ui,
-                            record,
-                            &self.active_progress,
-                            &self.ema_speeds,
-                            &self.queue,
-                            &mut self.confirm_delete_id,
+                        let is_sel = self.selected_row_ids.contains(&record.id);
+                        let live_prog = self.active_progress.get(&record.id);
+                        let downloaded = live_prog.map(|p| p.downloaded_bytes).unwrap_or(record.downloaded_bytes);
+                        let total = live_prog.and_then(|p| p.total_bytes).or(record.total_size);
+
+                        let pct = match total {
+                            Some(t) if t > 0 => ((downloaded as f64) / (t as f64) * 100.0).clamp(0.0, 100.0),
+                            _ => if record.status == "completed" { 100.0 } else { 0.0 },
+                        };
+
+                        let row_height = 44.0;
+                        let (row_rect, row_resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), row_height), egui::Sense::click());
+
+                        let row_bg = if is_sel {
+                            palette.accent_soft
+                        } else if row_resp.hovered() {
+                            palette.raise
+                        } else {
+                            palette.surface
+                        };
+
+                        ui.painter().rect_filled(row_rect, Rounding::ZERO, row_bg);
+                        ui.painter().line_segment(
+                            [pos2(row_rect.left(), row_rect.bottom()), pos2(row_rect.right(), row_rect.bottom())],
+                            Stroke::new(1.0_f32, palette.line),
                         );
-                        ui.add_space(6.0);
+
+                        // Checkbox
+                        let check_rect = Rect::from_center_size(pos2(row_rect.left() + 20.0, row_rect.center().y), Vec2::splat(16.0));
+                        let mut item_checked = is_sel;
+                        if ui.put(check_rect, egui::Checkbox::without_text(&mut item_checked)).changed() {
+                            if item_checked {
+                                self.selected_row_ids.insert(record.id.clone());
+                            } else {
+                                self.selected_row_ids.remove(&record.id);
+                            }
+                        }
+
+                        // Icon + Filename
+                        let name_start_x = row_rect.left() + col_check_w + 8.0;
+                        let icon_rect = Rect::from_center_size(pos2(name_start_x + 8.0, row_rect.center().y), Vec2::splat(14.0));
+                        draw_category_icon(ui.painter(), icon_rect, &record.category, palette.muted);
+
+                        let name_rect = Rect::from_min_size(
+                            pos2(name_start_x + 22.0, row_rect.center().y - 8.0),
+                            Vec2::new(col_name_w - 26.0, 18.0),
+                        );
+                        ui.painter().text(
+                            name_rect.left_top(),
+                            egui::Align2::LEFT_TOP,
+                            &record.filename,
+                            egui::FontId::proportional(13.0),
+                            palette.text,
+                        );
+
+                        // Size
+                        let size_start_x = name_start_x + col_name_w + 4.0;
+                        let total_str = total.map(SpeedTracker::format_bytes).unwrap_or_else(|| "—".to_string());
+                        ui.painter().text(
+                            pos2(size_start_x, row_rect.center().y - 8.0),
+                            egui::Align2::LEFT_TOP,
+                            total_str,
+                            egui::FontId::proportional(12.0),
+                            palette.muted,
+                        );
+
+                        // Progress: Thin bar + %
+                        let prog_start_x = size_start_x + col_size_w + 4.0;
+                        let bar_w = col_prog_w - 45.0;
+                        let bar_rect = Rect::from_min_size(pos2(prog_start_x, row_rect.center().y - 3.0), Vec2::new(bar_w, 6.0));
+                        ui.painter().rect_filled(bar_rect, Rounding::same(3.0), palette.raise);
+
+                        let fill_w = bar_w * (pct as f32 / 100.0);
+                        if fill_w > 0.0 {
+                            let bar_color = if record.status == "paused" { palette.muted } else { palette.accent };
+                            let fill_rect = Rect::from_min_size(bar_rect.left_top(), Vec2::new(fill_w, 6.0));
+                            ui.painter().rect_filled(fill_rect, Rounding::same(3.0), bar_color);
+                        }
+
+                        let pct_str = format!("{:.0}%", pct);
+                        ui.painter().text(
+                            pos2(prog_start_x + bar_w + 6.0, row_rect.center().y - 7.0),
+                            egui::Align2::LEFT_TOP,
+                            pct_str,
+                            egui::FontId::proportional(11.5),
+                            palette.muted,
+                        );
+
+                        // Speed
+                        let speed_start_x = prog_start_x + col_prog_w + 4.0;
+                        let speed_str = if record.status == "downloading" || record.status == "queued" {
+                            if let Some(prog) = live_prog {
+                                let sp = self.ema_speeds.get(&record.id).copied().unwrap_or(prog.speed_bps);
+                                SpeedTracker::format_speed(sp)
+                            } else {
+                                "—".to_string()
+                            }
+                        } else {
+                            "—".to_string()
+                        };
+                        ui.painter().text(
+                            pos2(speed_start_x, row_rect.center().y - 8.0),
+                            egui::Align2::LEFT_TOP,
+                            speed_str,
+                            egui::FontId::proportional(12.0),
+                            palette.muted,
+                        );
+
+                        // Status
+                        let status_start_x = speed_start_x + col_speed_w + 4.0;
+                        let status_display = match record.status.as_str() {
+                            "downloading" => "Downloading",
+                            "completed" => "Completed",
+                            "paused" => "Paused",
+                            "failed" => "Failed",
+                            _ => "Queued",
+                        };
+                        ui.painter().text(
+                            pos2(status_start_x, row_rect.center().y - 8.0),
+                            egui::Align2::LEFT_TOP,
+                            status_display,
+                            egui::FontId::proportional(12.0),
+                            palette.muted,
+                        );
                     }
                 });
             }
@@ -2468,7 +2760,7 @@ fn render_download_card(
         ui.horizontal(|ui| {
             // Category Icon & Filename
             let (icon_rect, _) = ui.allocate_exact_size(Vec2::new(18.0, 18.0), egui::Sense::hover());
-            draw_category_icon(ui.painter(), icon_rect, &record.category);
+            draw_category_icon(ui.painter(), icon_rect, &record.category, theme::DARK.accent);
             ui.add_space(4.0);
 
             ui.add(

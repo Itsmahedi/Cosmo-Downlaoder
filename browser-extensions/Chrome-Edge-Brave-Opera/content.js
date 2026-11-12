@@ -142,7 +142,7 @@ function attachCosmoDownloadButton(videoEl) {
   if (!hostContainer) return;
 
   // Prevent duplicate injections inside same host container or on same video
-  if (hostContainer.querySelector(".cosmo-video-container")) {
+  if (hostContainer.querySelector(".cosmo-video-host")) {
     return;
   }
 
@@ -154,245 +154,323 @@ function attachCosmoDownloadButton(videoEl) {
     }
   } catch (_) {}
 
-  // Create Container
-  const container = document.createElement("div");
-  container.className = "cosmo-video-container";
+  // Create Host Container with Shadow DOM for CSS isolation
+  const host = document.createElement("div");
+  host.className = "cosmo-video-host";
+  host.style.position = "absolute";
+  host.style.top = "12px";
+  host.style.right = "12px";
+  host.style.zIndex = "2147483647";
+  host.style.display = "block";
+  host.style.pointerEvents = "auto";
+  host.style.userSelect = "none";
 
-  // Create Download Button (Compact Pill)
+  const shadow = host.attachShadow({ mode: "open" });
+
+  const styleEl = document.createElement("style");
+  styleEl.textContent = `
+    :host {
+      --bg:#f3f4f6; --surface:#ffffff; --raise:#eceef1; --line:rgba(20,24,30,.1);
+      --text:#1b1d21; --muted:#646b75; --accent:#44546a; --on-accent:#ffffff; --accent-soft:rgba(68,84,106,.12);
+      --danger:#d93025;
+      --s1:4px; --s2:8px; --s3:12px; --s4:16px;
+      --r-sm:6px; --r:10px;
+      --font:'Geist','Segoe UI',system-ui,-apple-system,Roboto,sans-serif;
+      --t-body:14px; --t-small:12px;
+      --ease:160ms ease-out;
+      display: block;
+      font-family: var(--font);
+    }
+    @media (prefers-color-scheme:dark){
+      :host{
+        --bg:#1a1c20; --surface:#22252a; --raise:#2b2f35; --line:rgba(255,255,255,.08);
+        --text:#e6e8eb; --muted:#9097a1; --accent:#8fa6c4; --on-accent:#0f1a2a; --accent-soft:rgba(143,166,196,.16);
+      }
+    }
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    .dl {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: var(--s1);
+    }
+    .btn {
+      height: 28px;
+      padding: 0 var(--s2);
+      gap: 6px;
+      font-size: var(--t-small);
+      font-family: var(--font);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      color: var(--text);
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+      box-shadow: 0 1px 3px rgba(0,0,0,.08);
+      transition: background var(--ease), border-color var(--ease);
+      white-space: nowrap;
+    }
+    .btn:hover {
+      background: var(--raise);
+    }
+    .btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .btn img {
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+    .btn svg.i {
+      width: 14px;
+      height: 14px;
+      flex: none;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      transition: transform var(--ease);
+    }
+    .dl.open .btn svg.i {
+      transform: rotate(180deg);
+    }
+    .menu {
+      position: absolute;
+      top: calc(100% + var(--s1));
+      right: 0;
+      width: 176px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: var(--s1);
+      box-shadow: 0 8px 24px rgba(0,0,0,.18);
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      z-index: 1000;
+    }
+    .menu[hidden] {
+      display: none;
+    }
+    .dl.flip-up .menu {
+      top: auto;
+      bottom: calc(100% + var(--s1));
+    }
+    .menu button {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--s3);
+      width: 100%;
+      height: 30px;
+      align-items: center;
+      padding: 0 var(--s2);
+      font-size: 13px;
+      font-family: var(--font);
+      color: var(--text);
+      border: 0;
+      border-radius: var(--r-sm);
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+      transition: background var(--ease);
+    }
+    .menu button:hover, .menu button:focus-visible {
+      background: var(--accent-soft);
+      outline: none;
+    }
+    .menu button .size {
+      font-size: var(--t-small);
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .menu hr {
+      border: 0;
+      border-top: 1px solid var(--line);
+      margin: var(--s1) var(--s2);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition-duration: 0ms !important;
+        animation-duration: 0ms !important;
+      }
+    }
+  `;
+  shadow.appendChild(styleEl);
+
+  const dlContainer = document.createElement("div");
+  dlContainer.className = "dl";
+
   const btn = document.createElement("button");
-  btn.className = "cosmo-video-download-btn";
+  btn.className = "btn";
   btn.type = "button";
-  btn.setAttribute("aria-label", "Download Video with Cosmo Downloader");
-  btn.setAttribute("aria-haspopup", "true");
+  btn.setAttribute("aria-label", "Download");
+  btn.setAttribute("aria-haspopup", "listbox");
   btn.setAttribute("aria-expanded", "false");
 
   const logoImg = document.createElement("img");
   try {
-    logoImg.src = runtime.runtime.getURL("icons/icon-32.png");
+    logoImg.src = runtime.runtime.getURL("icons/icon-16.png");
   } catch (_) {
     logoImg.src = "";
   }
-  logoImg.alt = "Cosmo Downloader";
-  logoImg.className = "cosmo-btn-logo";
+  logoImg.alt = "Cosmo";
 
   const btnText = document.createElement("span");
-  btnText.className = "cosmo-btn-text";
-  btnText.textContent = "Download Video";
+  btnText.textContent = "Download";
 
   const svgNS = "http://www.w3.org/2000/svg";
-  const arrowSvg = document.createElementNS(svgNS, "svg");
-  arrowSvg.setAttribute("class", "cosmo-arrow-down");
-  arrowSvg.setAttribute("viewBox", "0 0 24 24");
-  arrowSvg.setAttribute("fill", "none");
-  arrowSvg.setAttribute("stroke", "currentColor");
-  arrowSvg.setAttribute("stroke-width", "2.5");
-  arrowSvg.setAttribute("stroke-linecap", "round");
-  arrowSvg.setAttribute("stroke-linejoin", "round");
-
-  const arrowPl = document.createElementNS(svgNS, "polyline");
-  arrowPl.setAttribute("points", "6 9 12 15 18 9");
-  arrowSvg.appendChild(arrowPl);
+  const chevSvg = document.createElementNS(svgNS, "svg");
+  chevSvg.setAttribute("class", "i");
+  chevSvg.setAttribute("viewBox", "0 0 24 24");
+  const chevPath = document.createElementNS(svgNS, "path");
+  chevPath.setAttribute("d", "M7 10l5 5 5-5");
+  chevSvg.appendChild(chevPath);
 
   btn.appendChild(logoImg);
   btn.appendChild(btnText);
-  btn.appendChild(arrowSvg);
+  btn.appendChild(chevSvg);
 
-  // Create Quality Dropdown Menu
   const menu = document.createElement("div");
-  menu.className = "cosmo-quality-menu";
+  menu.className = "menu";
+  menu.setAttribute("role", "listbox");
+  menu.setAttribute("aria-label", "Select quality");
+  menu.hidden = true;
 
-  const headerDiv = document.createElement("div");
-  headerDiv.className = "cosmo-menu-header";
+  // Reference items: 1080p, 720p, 480p, 360p, divider, Audio only
+  const MENU_ITEMS = [
+    { label: "1080p", size: "148 MB", format: "1080p" },
+    { label: "720p", size: "82 MB", format: "720p" },
+    { label: "480p", size: "41 MB", format: "480p" },
+    { label: "360p", size: "24 MB", format: "360p" },
+    null,
+    { label: "Audio only", size: "9 MB", format: "audio" }
+  ];
 
-  const headerLeft = document.createElement("div");
-  headerLeft.style.display = "flex";
-  headerLeft.style.alignItems = "center";
-  headerLeft.style.gap = "6px";
+  MENU_ITEMS.forEach((item) => {
+    if (!item) {
+      menu.appendChild(document.createElement("hr"));
+      return;
+    }
 
-  const menuLogo = document.createElement("img");
-  try {
-    menuLogo.src = runtime.runtime.getURL("icons/icon-32.png");
-  } catch (_) {
-    menuLogo.src = "";
-  }
-  menuLogo.style.width = "16px";
-  menuLogo.style.height = "16px";
-  menuLogo.style.borderRadius = "50%";
-  menuLogo.alt = "Cosmo Downloader";
+    const rowBtn = document.createElement("button");
+    rowBtn.type = "button";
+    rowBtn.setAttribute("role", "option");
+    rowBtn.dataset.format = item.format;
 
-  const headerSpan1 = document.createElement("span");
-  headerSpan1.textContent = "SELECT QUALITY";
+    const labelSpan = document.createElement("span");
+    labelSpan.textContent = item.label;
 
-  headerLeft.appendChild(menuLogo);
-  headerLeft.appendChild(headerSpan1);
+    const sizeSpan = document.createElement("span");
+    sizeSpan.className = "size";
+    sizeSpan.textContent = item.size;
 
-  const headerSpan2 = document.createElement("span");
-  headerSpan2.textContent = "COSMO DOWNLOADER";
-  headerDiv.appendChild(headerLeft);
-  headerDiv.appendChild(headerSpan2);
-  menu.appendChild(headerDiv);
-
-  QUALITIES.forEach((q) => {
-    const item = document.createElement("div");
-    item.className = "cosmo-quality-item" + (q.audioOnly ? " audio" : "");
-    item.setAttribute("data-format", q.format);
-
-    const titleSpan = document.createElement("span");
-    titleSpan.className = "quality-name";
-    titleSpan.textContent = q.label;
-
-    const badgeSpan = document.createElement("span");
-    badgeSpan.className = "badge";
-    badgeSpan.textContent = q.badge;
-
-    item.appendChild(titleSpan);
-    item.appendChild(badgeSpan);
-    menu.appendChild(item);
+    rowBtn.appendChild(labelSpan);
+    rowBtn.appendChild(sizeSpan);
+    menu.appendChild(rowBtn);
   });
 
-  const footerDiv = document.createElement("div");
-  footerDiv.className = "cosmo-menu-footer";
-  footerDiv.textContent = "\u2726 Warp Engine Acceleration Active";
-  menu.appendChild(footerDiv);
-
-  // Prevent parent player events from interfering or closing the menu
-  // capture-phase stopPropagation on pointerdown, mousedown, mouseup, pointerup, click
   const CAPTURE_STOP_EVENTS = ["pointerdown", "mousedown", "mouseup", "pointerup", "click"];
   CAPTURE_STOP_EVENTS.forEach((evtName) => {
-    container.addEventListener(evtName, (e) => {
-      e.stopPropagation();
-    });
-    btn.addEventListener(evtName, (e) => {
-      e.stopPropagation();
-    }, { capture: true });
+    host.addEventListener(evtName, (e) => e.stopPropagation());
+    btn.addEventListener(evtName, (e) => e.stopPropagation(), { capture: true });
   });
 
   const openMenu = () => {
-    container.classList.add("open");
+    menu.hidden = false;
+    dlContainer.classList.add("open");
     btn.setAttribute("aria-expanded", "true");
 
-    // Flip menu above button if it would overflow viewport bottom
     try {
       const btnRect = btn.getBoundingClientRect();
-      const menuEstimatedHeight = 320;
       const spaceBelow = window.innerHeight - btnRect.bottom;
-      const spaceAbove = btnRect.top;
-
-      if (spaceBelow < menuEstimatedHeight && spaceAbove > spaceBelow) {
-        container.classList.add("flip-up");
+      if (spaceBelow < 220 && btnRect.top > spaceBelow) {
+        dlContainer.classList.add("flip-up");
       } else {
-        container.classList.remove("flip-up");
+        dlContainer.classList.remove("flip-up");
       }
     } catch (_) {}
   };
 
   const closeMenu = () => {
-    container.classList.remove("open", "flip-up");
+    menu.hidden = true;
+    dlContainer.classList.remove("open", "flip-up");
     btn.setAttribute("aria-expanded", "false");
   };
 
   const toggleMenu = () => {
-    if (container.classList.contains("open")) {
-      closeMenu();
-    } else {
+    if (menu.hidden) {
       openMenu();
+    } else {
+      closeMenu();
     }
   };
 
-  // Toggle dropdown on button click (capture phase so it runs before stopPropagation stops bubbling)
   btn.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
     toggleMenu();
   }, { capture: true });
 
-  // Handle Quality Selection (auto-closes after choosing an option)
-  menu.querySelectorAll(".cosmo-quality-item").forEach((item) => {
+  menu.querySelectorAll("button").forEach((row) => {
     CAPTURE_STOP_EVENTS.forEach((evtName) => {
-      item.addEventListener(evtName, (e) => {
-        e.stopPropagation();
-      }, { capture: true });
+      row.addEventListener(evtName, (e) => e.stopPropagation(), { capture: true });
     });
 
-    item.addEventListener("click", (e) => {
+    row.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
 
-      const format = item.getAttribute("data-format");
+      const format = row.dataset.format;
       triggerDownload(videoEl, format);
 
-      // Auto-close menu
       closeMenu();
 
-      // Feedback animation
-      const textEl = btn.querySelector(".cosmo-btn-text");
-      const prevText = textEl ? textEl.textContent : "Download Video";
-      if (textEl) textEl.textContent = "\u2714 Sent to CosmoDownloader!";
-      btn.style.background = "linear-gradient(135deg, #00C853 0%, #00f0ff 100%)";
-
+      btnText.textContent = "Sent to Cosmo";
       setTimeout(() => {
-        if (textEl) textEl.textContent = prevText;
-        btn.style.background = "";
-      }, 2500);
+        btnText.textContent = "Download";
+      }, 1600);
     }, { capture: true });
   });
 
-  // Keep button solidly visible during user interaction
-  const showBtn = (e) => {
-    if (e) e.stopPropagation();
-    btn.style.opacity = "1";
-    btn.style.pointerEvents = "auto";
-  };
-
-  const handleMouseLeave = () => {
-    if (container.classList.contains("open")) return;
-    btn.style.opacity = "0.92";
-  };
-
-  hostContainer.addEventListener("mouseenter", showBtn);
-  hostContainer.addEventListener("mousemove", showBtn);
-  hostContainer.addEventListener("mouseleave", handleMouseLeave);
-  container.addEventListener("mouseenter", showBtn);
-  container.addEventListener("mousemove", showBtn);
-  container.addEventListener("mouseleave", handleMouseLeave);
-  btn.addEventListener("mouseenter", showBtn);
-  btn.addEventListener("mousemove", showBtn);
-  menu.addEventListener("mouseenter", showBtn);
-  menu.addEventListener("mousemove", showBtn);
-
-  // Close menu only when clicking outside via event.composedPath().includes(container)
   const onPointerDownOutside = (e) => {
-    if (!container.classList.contains("open")) return;
+    if (menu.hidden) return;
     const path = typeof e.composedPath === "function" ? e.composedPath() : [];
-    if (!path.includes(container) && !container.contains(e.target)) {
+    if (!path.includes(host) && !host.contains(e.target)) {
       closeMenu();
     }
   };
   document.addEventListener("pointerdown", onPointerDownOutside);
 
-  // Close menu on Escape key press
   const onKeyDown = (e) => {
-    if (e.key === "Escape" && container.classList.contains("open")) {
+    if (e.key === "Escape" && !menu.hidden) {
       closeMenu();
       btn.focus();
     }
   };
   document.addEventListener("keydown", onKeyDown);
 
-  container.appendChild(btn);
-  container.appendChild(menu);
-  hostContainer.appendChild(container);
+  dlContainer.appendChild(btn);
+  dlContainer.appendChild(menu);
+  shadow.appendChild(dlContainer);
+  hostContainer.appendChild(host);
 
   activeAttachedButtons.set(videoEl, {
-    container,
+    container: host,
     hostContainer,
     cleanup: () => {
       document.removeEventListener("pointerdown", onPointerDownOutside);
       document.removeEventListener("keydown", onKeyDown);
-      hostContainer.removeEventListener("mouseenter", showBtn);
-      hostContainer.removeEventListener("mousemove", showBtn);
-      hostContainer.removeEventListener("mouseleave", handleMouseLeave);
-      container.remove();
+      host.remove();
     }
   });
 }
