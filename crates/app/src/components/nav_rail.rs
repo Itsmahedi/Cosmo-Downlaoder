@@ -1,89 +1,66 @@
 use eframe::egui::{self, pos2, Color32, Painter, Rect, Vec2};
-use crate::theme::{colors, shapes};
+use rustget_core::category::CategoryFilter;
 use crate::icons;
+use crate::theme::{shapes, ThemeColors};
 
-// ============================================================================
-// Clean Minimalist Navigation Sidebar Components
-// ============================================================================
-
-pub fn render_brand(ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
-        let (icon_rect, _) = ui.allocate_exact_size(Vec2::splat(18.0), egui::Sense::hover());
-        icons::draw_logo(ui.painter(), icon_rect, colors::ACCENT);
-        ui.add_space(shapes::S2);
-        ui.label(
-            egui::RichText::new("Cosmo")
-                .size(16.0)
-                .color(colors::TEXT)
-                .strong(),
-        );
-    });
+pub struct CategoryCounts {
+    pub all: usize,
+    pub programs: usize,
+    pub video: usize,
+    pub music: usize,
+    pub documents: usize,
+    pub archives: usize,
 }
 
-pub fn render_new_download_button(ui: &mut egui::Ui) -> bool {
-    let btn_rect = ui.allocate_space(Vec2::new(ui.available_width(), shapes::CONTROL_HEIGHT)).1;
-    let response = ui.interact(btn_rect, ui.id().with("new_download_btn"), egui::Sense::click());
-
-    let bg_color = if response.hovered() {
-        Color32::from_rgb(
-            colors::ACCENT.r().saturating_add(15),
-            colors::ACCENT.g().saturating_add(15),
-            colors::ACCENT.b().saturating_add(15),
-        )
-    } else {
-        colors::ACCENT
-    };
-
-    ui.painter().rect_filled(btn_rect, shapes::R_SM, bg_color);
-
-    // Draw Plus Icon & Text
-    let mid_y = btn_rect.center().y;
-    let icon_rect = Rect::from_center_size(pos2(btn_rect.left() + 18.0, mid_y), Vec2::splat(14.0));
-    icons::draw_add(ui.painter(), icon_rect, colors::ON_ACCENT);
-
-    let text_pos = pos2(btn_rect.left() + 34.0, mid_y - 7.5);
+pub fn render_category_sidebar(
+    ui: &mut egui::Ui,
+    pal: &ThemeColors,
+    selected: &mut CategoryFilter,
+    counts: &CategoryCounts,
+) {
     ui.painter().text(
-        text_pos,
+        pos2(ui.min_rect().left() + 8.0, ui.cursor().top() + 8.0),
         egui::Align2::LEFT_TOP,
-        "New download",
-        egui::FontId::proportional(14.0),
-        colors::ON_ACCENT,
+        "Categories",
+        egui::FontId::proportional(12.0),
+        pal.muted,
     );
+    ui.add_space(28.0);
 
-    response.clicked()
+    let items: [(CategoryFilter, &str, usize, fn(&Painter, Rect, Color32)); 6] = [
+        (CategoryFilter::All, "All downloads", counts.all, icons::draw_all),
+        (CategoryFilter::Programs, "Programs", counts.programs, icons::draw_programs),
+        (CategoryFilter::Video, "Video", counts.video, icons::draw_video),
+        (CategoryFilter::Music, "Music", counts.music, icons::draw_music),
+        (CategoryFilter::Documents, "Documents", counts.documents, icons::draw_documents),
+        (CategoryFilter::Compressed, "Archives", counts.archives, icons::draw_compressed),
+    ];
+
+    for (cat, label, count, icon_fn) in items {
+        if render_nav_item(ui, pal, *selected == cat, label, count, icon_fn) {
+            *selected = cat;
+        }
+        ui.add_space(2.0);
+    }
 }
 
 pub fn render_nav_item(
     ui: &mut egui::Ui,
+    pal: &ThemeColors,
     is_selected: bool,
     name: &str,
     count: usize,
     draw_icon: impl FnOnce(&Painter, Rect, Color32),
 ) -> bool {
-    let row_height = shapes::CONTROL_HEIGHT;
+    let row_height = shapes::CONTROL_HEIGHT; // 34px
     let (rect, response) = ui.allocate_exact_size(Vec2::new(ui.available_width(), row_height), egui::Sense::click());
 
     let (bg_color, text_color, icon_color, count_color) = if is_selected {
-        (
-            Color32::from_rgb(0x28, 0x36, 0x4D), // Solid subtle dark blue container
-            Color32::from_rgb(0xA6, 0xC6, 0xFF), // Bright accent text
-            Color32::from_rgb(0xA6, 0xC6, 0xFF),
-            Color32::from_rgb(0xA6, 0xC6, 0xFF),
-        )
+        (pal.accent_soft, pal.accent, pal.accent, pal.accent)
     } else if response.hovered() {
-        (
-            colors::RAISE,
-            Color32::WHITE,
-            Color32::WHITE,
-            Color32::from_rgb(0xD8, 0xDE, 0xE8),
-        )
+        (pal.raise, pal.text, pal.text, pal.text)
     } else {
-        (
-            Color32::TRANSPARENT,
-            Color32::from_rgb(0xEB, 0xEF, 0xF5), // Bright, clearly legible white text
-            Color32::from_rgb(0xB8, 0xC0, 0xCC), // Clear icon
-            Color32::from_rgb(0xB8, 0xC0, 0xCC), // Clear tabular count
-        )
+        (Color32::TRANSPARENT, pal.muted, pal.muted, pal.muted)
     };
 
     if bg_color != Color32::TRANSPARENT {
@@ -91,26 +68,22 @@ pub fn render_nav_item(
     }
 
     let mid_y = rect.center().y;
-    let icon_rect = Rect::from_center_size(pos2(rect.left() + 14.0, mid_y), Vec2::splat(15.0));
+    let icon_rect = Rect::from_center_size(pos2(rect.left() + 8.0 + 9.0, mid_y), Vec2::splat(17.0));
     draw_icon(ui.painter(), icon_rect, icon_color);
 
-    let text_pos = pos2(rect.left() + 32.0, mid_y - 7.5);
     ui.painter().text(
-        text_pos,
-        egui::Align2::LEFT_TOP,
+        pos2(rect.left() + 8.0 + 18.0 + 12.0, mid_y),
+        egui::Align2::LEFT_CENTER,
         name,
         egui::FontId::proportional(13.5),
         text_color,
     );
 
-    // Right-aligned clean count
-    let count_str = count.to_string();
-    let count_pos = pos2(rect.right() - 10.0, mid_y - 7.5);
     ui.painter().text(
-        count_pos,
-        egui::Align2::RIGHT_TOP,
-        count_str,
-        egui::FontId::monospace(12.5),
+        pos2(rect.right() - 8.0, mid_y),
+        egui::Align2::RIGHT_CENTER,
+        count.to_string(),
+        egui::FontId::proportional(12.0),
         count_color,
     );
 

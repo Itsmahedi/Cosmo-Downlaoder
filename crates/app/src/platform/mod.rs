@@ -79,6 +79,29 @@ fn run_reg_command(args: &[&str]) -> std::io::Result<std::process::Output> {
     cmd.output()
 }
 
+pub fn system_prefers_dark() -> bool {
+    #[cfg(windows)]
+    {
+        if let Ok(out) = run_reg_command(&[
+            "query",
+            "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+            "/v",
+            "AppsUseLightTheme",
+        ]) {
+            if out.status.success() {
+                let s = String::from_utf8_lossy(&out.stdout);
+                if s.contains("0x1") {
+                    return false;
+                }
+                if s.contains("0x0") {
+                    return true;
+                }
+            }
+        }
+    }
+    true
+}
+
 pub fn ensure_native_host_registered() {
     #[cfg(windows)]
     std::thread::spawn(|| {

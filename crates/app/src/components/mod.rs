@@ -1,13 +1,13 @@
-pub mod download_card;
-pub mod empty_state;
-pub mod filter_chips;
+pub mod download_table;
+pub mod menu_bar;
 pub mod nav_rail;
-pub mod progress_bar;
-pub mod top_bar;
+pub mod status_bar;
+pub mod title_bar;
+pub mod toolbar;
 
-pub use download_card::*;
-pub use empty_state::*;
-pub use filter_chips::*;
+pub use download_table::*;
+pub use menu_bar::*;
 pub use nav_rail::*;
-pub use progress_bar::*;
-pub use top_bar::*;
+pub use status_bar::*;
+pub use title_bar::*;
+pub use toolbar::*;

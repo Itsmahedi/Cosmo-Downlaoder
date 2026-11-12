@@ -2,7 +2,7 @@
 ; Cosmo Downloader Windows Setup
 
 #define MyAppName "Cosmo Downloader"
-#define MyAppVersion "v1.0"
+#define MyAppVersion "v1.1"
 #define MyAppPublisher "Mahedi"
 #define MyAppExeName "CosmoDownloader.exe"
 #define MyCliExeName "cosmodownloader-cli.exe"
@@ -11,17 +11,17 @@
 [Setup]
 AppId={{D37E7492-3580-4D3B-A924-E8251C9B71C8}
 AppName={#MyAppName}
-AppVersion=1.0.0
+AppVersion=1.1.0
 AppVerName={#MyAppName} {#MyAppVersion}
 UninstallDisplayName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-VersionInfoVersion=1.0.0.0
-VersionInfoTextVersion=1.0.0
+VersionInfoVersion=1.1.0.0
+VersionInfoTextVersion=1.1.0
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=dist
-OutputBaseFilename=CosmoDownloader-Setup-v1.0
+OutputBaseFilename=CosmoDownloader-Setup-v1.1
 SetupIconFile=icon.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
@@ -226,10 +226,10 @@ begin
 
   if InstalledVersion <> '' then
   begin
-    if CompareVersionStrings(InstalledVersion, '1.0.0') > 0 then
+    if CompareVersionStrings(InstalledVersion, '1.1.0') > 0 then
     begin
       if MsgBox('A newer version of Cosmo Downloader (' + InstalledVersion + ') is currently installed.' + #13#10 +
-                'Downgrading to version 1.0.0 may cause configuration incompatibility.' + #13#10 + #13#10 +
+                'Downgrading to version 1.1.0 may cause configuration incompatibility.' + #13#10 + #13#10 +
                 'Do you wish to continue anyway?', mbConfirmation, MB_YESNO) <> IDYES then
       begin
         Abort();

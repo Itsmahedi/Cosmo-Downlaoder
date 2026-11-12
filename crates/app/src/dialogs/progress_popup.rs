@@ -1,5 +1,5 @@
 use eframe::egui::{self, Color32, Stroke, Vec2};
-use crate::theme::{colors, shapes};
+use crate::theme::{shapes, ThemeColors};
 use crate::icons;
 use rustget_core::{
     downloader::DownloadProgress,
@@ -14,6 +14,7 @@ pub struct ProgressDialogOutcome {
 
 pub fn render_progress_dialog(
     ui: &mut egui::Ui,
+    pal: &ThemeColors,
     filename: &str,
     target_path: &str,
     progress: Option<&DownloadProgress>,
@@ -43,10 +44,9 @@ pub fn render_progress_dialog(
         ("0 B".to_string(), "Connecting...".to_string(), "0 B/s".to_string(), "--:--".to_string(), 0.0)
     };
 
-    // Header: Download icon + Filename
     ui.horizontal(|ui| {
         let (icon_rect, _) = ui.allocate_exact_size(Vec2::splat(24.0), egui::Sense::hover());
-        icons::draw_download(ui.painter(), icon_rect, colors::ACCENT);
+        icons::draw_download(ui.painter(), icon_rect, pal.accent);
 
         ui.add_space(shapes::S2);
         ui.vertical(|ui| {
@@ -54,12 +54,12 @@ pub fn render_progress_dialog(
                 egui::RichText::new(filename)
                     .strong()
                     .size(14.0)
-                    .color(colors::TEXT),
+                    .color(pal.text),
             );
             ui.label(
                 egui::RichText::new(format!("{} of {}  •  {}, {} left", downloaded, total, speed, eta))
                     .size(12.0)
-                    .color(colors::MUTED)
+                    .color(pal.muted)
                     .monospace(),
             );
         });
@@ -67,12 +67,11 @@ pub fn render_progress_dialog(
 
     ui.add_space(shapes::S3);
 
-    // 3px Progress Bar
     let track_rect = ui.allocate_space(Vec2::new(ui.available_width(), 4.0)).1;
-    ui.painter().rect_filled(track_rect, shapes::R_SM, colors::RAISE);
+    ui.painter().rect_filled(track_rect, shapes::R_SM, pal.raise);
     let fill_w = (track_rect.width() * ratio).max(if ratio > 0.0 { 3.0 } else { 0.0 });
     let fill_rect = eframe::egui::Rect::from_min_size(track_rect.min, Vec2::new(fill_w, 4.0));
-    let fill_col = if is_paused { colors::MUTED } else { colors::ACCENT };
+    let fill_col = if is_paused { pal.muted } else { pal.accent };
     ui.painter().rect_filled(fill_rect, shapes::R_SM, fill_col);
 
     ui.add_space(shapes::S2);
@@ -80,25 +79,23 @@ pub fn render_progress_dialog(
     ui.label(
         egui::RichText::new(format!("Saving to: {}", target_path))
             .size(11.5)
-            .color(colors::MUTED),
+            .color(pal.muted),
     );
 
     ui.add_space(shapes::S3);
 
-    // Divider
     let div_rect = ui.allocate_space(Vec2::new(ui.available_width(), 1.0)).1;
-    ui.painter().rect_filled(div_rect, 0.0, colors::LINE);
+    ui.painter().rect_filled(div_rect, 0.0, pal.line);
 
     ui.add_space(shapes::S3);
 
-    // Controls Row
     ui.horizontal(|ui| {
         let pause_label = if is_paused { "Resume" } else { "Pause" };
         let pause_btn = egui::Button::new(
-            egui::RichText::new(pause_label).size(13.0).color(colors::TEXT),
+            egui::RichText::new(pause_label).size(13.0).color(pal.text),
         )
         .fill(Color32::TRANSPARENT)
-        .stroke(Stroke::new(1.0_f32, colors::LINE))
+        .stroke(Stroke::new(1.0_f32, pal.line))
         .min_size(Vec2::new(90.0, shapes::CONTROL_HEIGHT))
         .rounding(shapes::R_SM);
 
@@ -109,7 +106,7 @@ pub fn render_progress_dialog(
         ui.add_space(shapes::S2);
 
         let cancel_btn = egui::Button::new(
-            egui::RichText::new("Cancel").size(13.0).color(colors::MUTED),
+            egui::RichText::new("Cancel").size(13.0).color(pal.muted),
         )
         .fill(Color32::TRANSPARENT)
         .min_size(Vec2::new(70.0, shapes::CONTROL_HEIGHT))
@@ -121,9 +118,9 @@ pub fn render_progress_dialog(
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let close_btn = egui::Button::new(
-                egui::RichText::new("Hide to background").size(13.0).color(colors::ON_ACCENT),
+                egui::RichText::new("Hide to background").size(13.0).color(pal.on_accent),
             )
-            .fill(colors::ACCENT)
+            .fill(pal.accent)
             .min_size(Vec2::new(140.0, shapes::CONTROL_HEIGHT))
             .rounding(shapes::R_SM);
 

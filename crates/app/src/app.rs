@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -19,46 +19,34 @@ use rustget_core::{
 
 use crate::components::*;
 use crate::dialogs::*;
-use crate::icons;
 use crate::platform;
-use crate::theme::{self, colors, shapes};
+use crate::theme::{self, shapes};
 
 pub const ICON_RGBA: &[u8] = include_bytes!("icon_32.rgba");
 pub const APP_TITLE: &str = "Cosmo Downloader";
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
-pub enum FilterTab {
-    All,
-    Downloading,
-    Completed,
-    Paused,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct AppCounts {
-    pub status_all: usize,
-    pub status_downloading: usize,
-    pub status_completed: usize,
-    pub status_paused: usize,
-}
-
-pub fn compute_status_counts(downloads: &[DownloadRecord], cat_filter: CategoryFilter) -> AppCounts {
-    let mut counts = AppCounts::default();
-
+pub fn compute_category_counts(downloads: &[DownloadRecord]) -> CategoryCounts {
+    let mut counts = CategoryCounts {
+        all: downloads.len(),
+        programs: 0,
+        video: 0,
+        music: 0,
+        documents: 0,
+        archives: 0,
+    };
     for d in downloads {
-        if !cat_filter.matches(&d.category) {
-            continue;
-        }
-
-        counts.status_all += 1;
-        match d.status.as_str() {
-            "downloading" | "queued" => counts.status_downloading += 1,
-            "completed" => counts.status_completed += 1,
-            "paused" => counts.status_paused += 1,
-            _ => {}
+        if CategoryFilter::Programs.matches(&d.category) {
+            counts.programs += 1;
+        } else if CategoryFilter::Video.matches(&d.category) {
+            counts.video += 1;
+        } else if CategoryFilter::Music.matches(&d.category) {
+            counts.music += 1;
+        } else if CategoryFilter::Documents.matches(&d.category) {
+            counts.documents += 1;
+        } else if CategoryFilter::Compressed.matches(&d.category) {
+            counts.archives += 1;
         }
     }
-
     counts
 }
 
@@ -67,10 +55,10 @@ pub struct CosmoDownloaderApp {
     pub downloads: Vec<DownloadRecord>,
     pub active_progress: HashMap<String, DownloadProgress>,
     pub ema_speeds: HashMap<String, f64>,
-    pub selected_tab: FilterTab,
     pub selected_category: CategoryFilter,
-    pub counts: AppCounts,
-    pub confirm_delete_id: Option<String>,
+    pub selected_ids: HashSet<String>,
+    pub is_dark: bool,
+    pub logo_texture: Option<egui::TextureHandle>,
 
     // Dialogs & Popup Mode
     pub is_popup_mode: bool,
@@ -79,6 +67,7 @@ pub struct CosmoDownloaderApp {
     pub popup_opened_at: Option<std::time::Instant>,
     pub show_add_dialog: bool,
     pub show_settings_dialog: bool,
+    pub show_about_dialog: bool,
     pub completed_dialog_record: Option<DownloadRecord>,
     pub is_completed_popup_mode: bool,
     pub active_popup_task_id: Option<String>,
@@ -129,8 +118,6 @@ pub struct CosmoDownloaderApp {
 
 impl CosmoDownloaderApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        theme::configure_m3_visuals(&cc.egui_ctx);
-
         let mut is_standalone_popup = false;
         let mut standalone_popup_file = None;
         let mut standalone_req = None;
@@ -193,6 +180,7 @@ impl CosmoDownloaderApp {
                     ctx_wake.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Critical));
                 })
                 .with_download_wake_callback(move || {
+                    ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
                     ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(460.0, 390.0)));
                     ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Title("New Download".to_string()));
                     ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Resizable(false));
@@ -217,7 +205,7 @@ impl CosmoDownloaderApp {
         clip_monitor.start(clip_tx);
 
         let (autostart, reg_start_minimized) = platform::get_autostart_info();
-        let (saved_clip, saved_min_tray, saved_show_tray, saved_start_min) = {
+        let (saved_clip, saved_min_tray, saved_show_tray, saved_start_min, saved_theme) = {
             let rt = tokio::runtime::Handle::current();
             rt.block_on(async {
                 let db = queue.db();
@@ -225,9 +213,20 @@ impl CosmoDownloaderApp {
                 let min_tray = db.get_setting("minimize_to_tray_enabled").await.ok().flatten().map(|v| v == "true").unwrap_or(true);
                 let show_tray = db.get_setting("show_tray_icon_enabled").await.ok().flatten().map(|v| v == "true").unwrap_or(true);
                 let start_min = db.get_setting("start_minimized_enabled").await.ok().flatten().map(|v| v == "true").unwrap_or(reg_start_minimized);
-                (clip, min_tray, show_tray, start_min)
+                let ui_theme = db.get_setting("ui_theme").await.ok().flatten();
+                (clip, min_tray, show_tray, start_min, ui_theme)
             })
         };
+
+        let is_dark = match saved_theme.as_deref() {
+            Some("light") => false,
+            Some("dark") => true,
+            _ => platform::system_prefers_dark(),
+        };
+        theme::configure_visuals(&cc.egui_ctx, is_dark);
+
+        let color_image = egui::ColorImage::from_rgba_unmultiplied([32, 32], ICON_RGBA);
+        let logo_texture = Some(cc.egui_ctx.load_texture("cosmo_logo", color_image, egui::TextureOptions::LINEAR));
 
         let (tray_tx, tray_event_receiver) = std::sync::mpsc::channel();
         let tray_icon = if !is_standalone_popup && !daemon_online && saved_show_tray {
@@ -247,18 +246,6 @@ impl CosmoDownloaderApp {
             })
         };
 
-        let initial_tab = {
-            let rt = tokio::runtime::Handle::current();
-            rt.block_on(async {
-                match queue.db().get_setting("ui_selected_tab").await.unwrap_or(None).as_deref() {
-                    Some("downloading") => FilterTab::Downloading,
-                    Some("completed") => FilterTab::Completed,
-                    Some("paused") => FilterTab::Paused,
-                    _ => FilterTab::All,
-                }
-            })
-        };
-
         let initial_category = {
             let rt = tokio::runtime::Handle::current();
             rt.block_on(async {
@@ -274,17 +261,15 @@ impl CosmoDownloaderApp {
             })
         };
 
-        let counts = compute_status_counts(&initial_downloads, initial_category);
-
         let mut app = Self {
             queue,
             downloads: initial_downloads,
             active_progress: HashMap::new(),
             ema_speeds: HashMap::new(),
-            selected_tab: initial_tab,
             selected_category: initial_category,
-            counts,
-            confirm_delete_id: None,
+            selected_ids: HashSet::new(),
+            is_dark,
+            logo_texture,
 
             is_popup_mode: is_popup_arg,
             is_standalone_popup,
@@ -292,6 +277,7 @@ impl CosmoDownloaderApp {
             popup_opened_at: if is_popup_arg { Some(std::time::Instant::now()) } else { None },
             show_add_dialog: is_popup_arg,
             show_settings_dialog: false,
+            show_about_dialog: false,
             completed_dialog_record: None,
             is_completed_popup_mode: false,
             active_popup_task_id: None,
@@ -351,7 +337,8 @@ impl CosmoDownloaderApp {
                 q.db().list_downloads(None).await.unwrap_or_default()
             })
         };
-        self.counts = compute_status_counts(&downloads, self.selected_category);
+        let valid_ids: HashSet<&str> = downloads.iter().map(|d| d.id.as_str()).collect();
+        self.selected_ids.retain(|id| valid_ids.contains(id.as_str()));
         self.downloads = downloads;
     }
 
@@ -495,6 +482,142 @@ impl CosmoDownloaderApp {
         self.add_description.clear();
         self.show_add_dialog = false;
     }
+
+    fn toggle_theme(&mut self, ctx: &egui::Context) {
+        self.is_dark = !self.is_dark;
+        theme::configure_visuals(ctx, self.is_dark);
+        let db = self.queue.db().clone();
+        let val = if self.is_dark { "dark" } else { "light" };
+        tokio::spawn(async move {
+            let _ = db.set_setting("ui_theme", val).await;
+        });
+    }
+
+    fn restore_main_window_chrome(&self, ctx: &egui::Context) {
+        platform::remove_popup_topmost();
+        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Resizable(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(920.0, 580.0)));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
+    }
+
+    fn resume_selected(&self) {
+        let q = Arc::clone(&self.queue);
+        let ids: Vec<String> = self
+            .downloads
+            .iter()
+            .filter(|d| self.selected_ids.contains(&d.id) && (d.status == "paused" || d.status == "failed"))
+            .map(|d| d.id.clone())
+            .collect();
+        tokio::spawn(async move {
+            for id in ids {
+                let _ = q.resume(&id).await;
+            }
+        });
+    }
+
+    fn pause_selected(&self) {
+        let q = Arc::clone(&self.queue);
+        let ids: Vec<String> = self
+            .downloads
+            .iter()
+            .filter(|d| self.selected_ids.contains(&d.id) && (d.status == "downloading" || d.status == "queued"))
+            .map(|d| d.id.clone())
+            .collect();
+        tokio::spawn(async move {
+            for id in ids {
+                let _ = q.pause(&id).await;
+            }
+        });
+    }
+
+    fn delete_selected(&mut self) {
+        let q = Arc::clone(&self.queue);
+        let ids: Vec<String> = self.selected_ids.drain().collect();
+        if ids.is_empty() {
+            return;
+        }
+        tokio::spawn(async move {
+            for id in ids {
+                let _ = q.remove(&id, false).await;
+            }
+        });
+    }
+
+    fn resume_all(&self) {
+        let q = Arc::clone(&self.queue);
+        let ids: Vec<String> = self
+            .downloads
+            .iter()
+            .filter(|d| d.status == "paused" || d.status == "failed")
+            .map(|d| d.id.clone())
+            .collect();
+        tokio::spawn(async move {
+            for id in ids {
+                let _ = q.resume(&id).await;
+            }
+        });
+    }
+
+    fn pause_all(&self) {
+        let q = Arc::clone(&self.queue);
+        let ids: Vec<String> = self
+            .downloads
+            .iter()
+            .filter(|d| d.status == "downloading" || d.status == "queued")
+            .map(|d| d.id.clone())
+            .collect();
+        tokio::spawn(async move {
+            for id in ids {
+                let _ = q.pause(&id).await;
+            }
+        });
+    }
+
+    fn handle_borderless_resize(&self, ctx: &egui::Context) {
+        let is_maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
+        if is_maximized {
+            return;
+        }
+        let Some(rect) = ctx.input(|i| i.viewport().inner_rect) else {
+            return;
+        };
+        let Some(pos) = ctx.input(|i| i.pointer.hover_pos()) else {
+            return;
+        };
+
+        let edge = 5.0;
+        let left = pos.x <= edge;
+        let right = pos.x >= rect.width() - edge;
+        let top = pos.y <= edge;
+        let bottom = pos.y >= rect.height() - edge;
+
+        let dir = match (left, right, top, bottom) {
+            (true, false, true, false) => Some(egui::ResizeDirection::NorthWest),
+            (false, true, true, false) => Some(egui::ResizeDirection::NorthEast),
+            (true, false, false, true) => Some(egui::ResizeDirection::SouthWest),
+            (false, true, false, true) => Some(egui::ResizeDirection::SouthEast),
+            (true, false, false, false) => Some(egui::ResizeDirection::West),
+            (false, true, false, false) => Some(egui::ResizeDirection::East),
+            (false, false, true, false) => Some(egui::ResizeDirection::North),
+            (false, false, false, true) => Some(egui::ResizeDirection::South),
+            _ => None,
+        };
+
+        if let Some(d) = dir {
+            let icon = match d {
+                egui::ResizeDirection::North | egui::ResizeDirection::South => egui::CursorIcon::ResizeVertical,
+                egui::ResizeDirection::East | egui::ResizeDirection::West => egui::CursorIcon::ResizeHorizontal,
+                egui::ResizeDirection::NorthWest | egui::ResizeDirection::SouthEast => egui::CursorIcon::ResizeNwSe,
+                egui::ResizeDirection::NorthEast | egui::ResizeDirection::SouthWest => egui::CursorIcon::ResizeNeSw,
+            };
+            ctx.set_cursor_icon(icon);
+            if ctx.input(|i| i.pointer.primary_pressed()) {
+                ctx.send_viewport_cmd(egui::ViewportCommand::BeginResize(d));
+            }
+        }
+    }
 }
 
 impl eframe::App for CosmoDownloaderApp {
@@ -513,18 +636,17 @@ impl eframe::App for CosmoDownloaderApp {
 
         ctx.request_repaint_after(Duration::from_millis(100));
 
+        let pal = theme::palette(self.is_dark);
+
         // Window close handler (Minimize to tray)
         if ctx.input(|i| i.viewport().close_requested()) {
             if self.is_progress_popup_mode {
                 ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 self.is_progress_popup_mode = false;
                 self.active_popup_task_id = None;
-                platform::remove_popup_topmost();
-                ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
+                self.restore_main_window_chrome(ctx);
                 platform::hide_main_window();
                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
                 return;
             }
             if self.is_completed_popup_mode {
@@ -535,12 +657,9 @@ impl eframe::App for CosmoDownloaderApp {
                 self.is_progress_popup_mode = false;
                 self.active_popup_task_id = None;
                 self.popup_opened_at = None;
-                platform::remove_popup_topmost();
-                ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
+                self.restore_main_window_chrome(ctx);
                 platform::hide_main_window();
                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
                 return;
             }
             if self.is_popup_mode {
@@ -560,21 +679,20 @@ impl eframe::App for CosmoDownloaderApp {
                 self.show_add_dialog = false;
                 self.add_url.clear();
                 self.add_filename.clear();
+                self.restore_main_window_chrome(ctx);
+                platform::hide_main_window();
+                ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                return;
+            }
+
+            if self.setting_minimize_to_tray && self.tray_icon.is_some() {
+                ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
                 platform::remove_popup_topmost();
                 ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
                 platform::hide_main_window();
                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
                 return;
             }
-
-            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            platform::remove_popup_topmost();
-            ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
-            platform::hide_main_window();
-            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-            return;
         }
 
         // Receive task ID
@@ -590,7 +708,11 @@ impl eframe::App for CosmoDownloaderApp {
                 self.add_file_size = sz;
                 if let Some(name) = suggested_name {
                     let cur_name = self.add_filename.trim().to_ascii_lowercase();
-                    if cur_name == "download" || cur_name == "download.bin" || !self.add_filename.contains('.') || (name.contains('.') && !cur_name.contains('.')) {
+                    if cur_name == "download"
+                        || cur_name == "download.bin"
+                        || !self.add_filename.contains('.')
+                        || (name.contains('.') && !cur_name.contains('.'))
+                    {
                         self.add_filename = name.clone();
                         let cat = categorize(Some(&name), None);
                         self.add_category = cat.name().to_string();
@@ -640,7 +762,11 @@ impl eframe::App for CosmoDownloaderApp {
                             DownloadRecord {
                                 id: id.clone(),
                                 url: self.active_popup_url.clone(),
-                                filename: Path::new(&resolved_target).file_name().and_then(|s| s.to_str()).unwrap_or(&self.active_popup_filename).to_string(),
+                                filename: Path::new(&resolved_target)
+                                    .file_name()
+                                    .and_then(|s| s.to_str())
+                                    .unwrap_or(&self.active_popup_filename)
+                                    .to_string(),
                                 target_path: resolved_target,
                                 part_path: String::new(),
                                 category: cat_str,
@@ -663,6 +789,7 @@ impl eframe::App for CosmoDownloaderApp {
                         });
                         self.completed_dialog_record = Some(record);
                         self.is_completed_popup_mode = true;
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
                         ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 260.0)));
                         ctx.send_viewport_cmd(egui::ViewportCommand::Title("Download complete".to_string()));
                         ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop));
@@ -705,10 +832,7 @@ impl eframe::App for CosmoDownloaderApp {
             self.is_popup_mode = false;
             self.is_progress_popup_mode = false;
             self.is_completed_popup_mode = false;
-            platform::remove_popup_topmost();
-            ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
-            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-            ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
+            self.restore_main_window_chrome(ctx);
             platform::show_main_window();
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
@@ -726,6 +850,7 @@ impl eframe::App for CosmoDownloaderApp {
             self.completed_dialog_record = None;
             self.active_popup_task_id = None;
             self.show_add_dialog = true;
+            ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
             ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 310.0)));
             ctx.send_viewport_cmd(egui::ViewportCommand::Title("Download File Info".to_string()));
             ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop));
@@ -748,6 +873,7 @@ impl eframe::App for CosmoDownloaderApp {
                 self.completed_dialog_record = None;
                 self.active_popup_task_id = None;
                 self.show_add_dialog = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
                 ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 310.0)));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Title("Download File Info".to_string()));
                 ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop));
@@ -768,26 +894,18 @@ impl eframe::App for CosmoDownloaderApp {
                         self.is_popup_mode = false;
                         self.is_progress_popup_mode = false;
                         self.is_completed_popup_mode = false;
-                        platform::remove_popup_topmost();
-                        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
+                        self.restore_main_window_chrome(ctx);
                         platform::show_main_window();
                         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
                         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
                         ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Critical));
-                        #[cfg(windows)]
-                        platform::make_popup_topmost();
                     }
                     "add" => {
                         self.is_popup_mode = false;
                         self.is_progress_popup_mode = false;
                         self.is_completed_popup_mode = false;
-                        platform::remove_popup_topmost();
-                        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
+                        self.restore_main_window_chrome(ctx);
                         platform::show_main_window();
                         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
                         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
@@ -805,7 +923,7 @@ impl eframe::App for CosmoDownloaderApp {
         // Standalone Progress Mode
         if self.is_progress_popup_mode {
             egui::CentralPanel::default()
-                .frame(egui::Frame::none().fill(colors::SURFACE_CONTAINER_HIGH).inner_margin(Margin::same(16.0)))
+                .frame(egui::Frame::none().fill(pal.surface).inner_margin(Margin::same(16.0)))
                 .show(ctx, |ui| {
                     let task_id = self.active_popup_task_id.clone();
                     let fname = if !self.active_popup_filename.is_empty() {
@@ -818,7 +936,7 @@ impl eframe::App for CosmoDownloaderApp {
                         self.downloads.iter().any(|d| &d.id == id && d.status == "paused")
                     });
 
-                    let outcome = render_progress_dialog(ui, &fname, &self.active_popup_target_path, prog, is_paused);
+                    let outcome = render_progress_dialog(ui, pal, &fname, &self.active_popup_target_path, prog, is_paused);
                     if outcome.toggle_pause {
                         if let Some(ref id) = task_id {
                             let id_c = id.clone();
@@ -843,8 +961,7 @@ impl eframe::App for CosmoDownloaderApp {
                         self.is_progress_popup_mode = false;
                         self.active_popup_task_id = None;
                         if self.is_standalone_popup {
-                            platform::remove_popup_topmost();
-                            ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
+                            self.restore_main_window_chrome(ctx);
                             platform::hide_main_window();
                             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                         }
@@ -852,8 +969,7 @@ impl eframe::App for CosmoDownloaderApp {
                     if outcome.close {
                         self.is_progress_popup_mode = false;
                         if self.is_standalone_popup {
-                            platform::remove_popup_topmost();
-                            ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
+                            self.restore_main_window_chrome(ctx);
                             platform::hide_main_window();
                             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                         }
@@ -865,10 +981,10 @@ impl eframe::App for CosmoDownloaderApp {
         // Standalone Complete Mode
         if self.is_completed_popup_mode && self.completed_dialog_record.is_some() {
             egui::CentralPanel::default()
-                .frame(egui::Frame::none().fill(colors::SURFACE_CONTAINER_HIGH).inner_margin(Margin::same(16.0)))
+                .frame(egui::Frame::none().fill(pal.surface).inner_margin(Margin::same(16.0)))
                 .show(ctx, |ui| {
                     if let Some(ref record) = self.completed_dialog_record {
-                        let outcome = render_complete_dialog(ui, record);
+                        let outcome = render_complete_dialog(ui, pal, record);
                         if outcome.close {
                             if self.is_standalone_popup {
                                 if let Some(ref f) = self.standalone_popup_file {
@@ -878,12 +994,9 @@ impl eframe::App for CosmoDownloaderApp {
                             } else {
                                 self.is_completed_popup_mode = false;
                                 self.completed_dialog_record = None;
-                                platform::remove_popup_topmost();
-                                ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
+                                self.restore_main_window_chrome(ctx);
                                 platform::hide_main_window();
                                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-                                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(880.0, 560.0)));
-                                ctx.send_viewport_cmd(egui::ViewportCommand::Title(APP_TITLE.to_string()));
                             }
                         }
                     }
@@ -894,10 +1007,11 @@ impl eframe::App for CosmoDownloaderApp {
         // Standalone Popup File Info Mode
         if self.is_popup_mode {
             egui::CentralPanel::default()
-                .frame(egui::Frame::none().fill(colors::SURFACE).inner_margin(Margin::same(20.0)))
+                .frame(egui::Frame::none().fill(pal.surface).inner_margin(Margin::same(20.0)))
                 .show(ctx, |ui| {
                     let outcome = render_add_download_dialog(
                         ui,
+                        pal,
                         &mut self.add_url,
                         &mut self.add_filename,
                         &mut self.add_category,
@@ -916,8 +1030,7 @@ impl eframe::App for CosmoDownloaderApp {
                         self.is_popup_mode = false;
                         self.popup_opened_at = None;
                         if self.is_standalone_popup {
-                            platform::remove_popup_topmost();
-                            ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
+                            self.restore_main_window_chrome(ctx);
                             platform::hide_main_window();
                             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                         }
@@ -927,6 +1040,7 @@ impl eframe::App for CosmoDownloaderApp {
                         self.is_popup_mode = false;
                         self.popup_opened_at = None;
                         self.is_progress_popup_mode = true;
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
                         ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(480.0, 240.0)));
                         ctx.send_viewport_cmd(egui::ViewportCommand::Title("Downloading - Cosmo Downloader".to_string()));
                         ctx.send_viewport_cmd(egui::ViewportCommand::Resizable(false));
@@ -945,8 +1059,7 @@ impl eframe::App for CosmoDownloaderApp {
                         self.is_popup_mode = false;
                         self.popup_opened_at = None;
                         if self.is_standalone_popup {
-                            platform::remove_popup_topmost();
-                            ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::Normal));
+                            self.restore_main_window_chrome(ctx);
                             platform::hide_main_window();
                             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                         }
@@ -956,60 +1069,170 @@ impl eframe::App for CosmoDownloaderApp {
         }
 
         // ====================================================================
-        // Full Dashboard View (Clean, Quiet, Minimalist Layout)
+        // Full Dashboard View (Matches User's HTML UI)
         // ====================================================================
+        self.handle_borderless_resize(ctx);
 
-        // Keep status counts strictly synchronized with the active category filter
-        self.counts = compute_status_counts(&self.downloads, self.selected_category);
-
-        let prev_tab = self.selected_tab;
         let prev_cat = self.selected_category;
+        let cat_counts = compute_category_counts(&self.downloads);
 
-        // Left Navigation Sidebar (Status Only, Brand & New Download CTA)
-        egui::SidePanel::left("cosmo_sidebar")
-            .resizable(false)
-            .default_width(208.0)
-            .frame(egui::Frame::none().fill(colors::SURFACE).inner_margin(Margin::symmetric(14.0, 16.0)))
+        let filtered_ids: Vec<String> = self
+            .downloads
+            .iter()
+            .filter(|d| self.selected_category.matches(&d.category))
+            .map(|d| d.id.clone())
+            .collect();
+        let filtered_count = filtered_ids.len();
+
+        let total_speed: f64 = self.active_progress.values().map(|p| p.speed_bps).sum();
+
+        // 1. Top Title Bar (.title)
+        egui::TopBottomPanel::top("cosmo_title_bar")
+            .exact_height(36.0)
+            .frame(egui::Frame::none().fill(pal.raise).inner_margin(Margin::same(0.0)))
             .show(ctx, |ui| {
-                nav_rail::render_brand(ui);
-                ui.add_space(shapes::S4);
+                let act = title_bar::render_title_bar(ui, ctx, pal, self.logo_texture.as_ref(), APP_TITLE);
+                if act.minimize {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                }
+                if act.toggle_maximize {
+                    let is_max = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(!is_max));
+                }
+                if act.close {
+                    if self.setting_minimize_to_tray && self.tray_icon.is_some() {
+                        platform::hide_main_window();
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                    } else {
+                        std::process::exit(0);
+                    }
+                }
+            });
 
-                if nav_rail::render_new_download_button(ui) {
+        // 2. Menu Bar (.menubar)
+        egui::TopBottomPanel::top("cosmo_menu_bar")
+            .exact_height(36.0)
+            .frame(egui::Frame::none().fill(pal.surface).inner_margin(Margin::same(0.0)))
+            .show(ctx, |ui| {
+                let m_act = menu_bar::render_menu_bar(
+                    ui,
+                    pal,
+                    !self.selected_ids.is_empty(),
+                    self.setting_clipboard_monitor,
+                    self.selected_category,
+                );
+                if m_act.add_download {
                     self.show_add_dialog = true;
                 }
-
-                ui.add_space(shapes::S4);
-
-                if nav_rail::render_nav_item(ui, self.selected_tab == FilterTab::All, "All", self.counts.status_all, icons::draw_all) {
-                    self.selected_tab = FilterTab::All;
+                if m_act.exit_app {
+                    std::process::exit(0);
                 }
-                ui.add_space(2.0);
-                if nav_rail::render_nav_item(ui, self.selected_tab == FilterTab::Downloading, "Downloading", self.counts.status_downloading, icons::draw_download) {
-                    self.selected_tab = FilterTab::Downloading;
+                if m_act.resume_selected {
+                    self.resume_selected();
                 }
-                ui.add_space(2.0);
-                if nav_rail::render_nav_item(ui, self.selected_tab == FilterTab::Paused, "Paused", self.counts.status_paused, icons::draw_pause) {
-                    self.selected_tab = FilterTab::Paused;
+                if m_act.pause_selected {
+                    self.pause_selected();
                 }
-                ui.add_space(2.0);
-                if nav_rail::render_nav_item(ui, self.selected_tab == FilterTab::Completed, "Completed", self.counts.status_completed, icons::draw_check) {
-                    self.selected_tab = FilterTab::Completed;
+                if m_act.delete_selected {
+                    self.delete_selected();
+                }
+                if m_act.resume_all {
+                    self.resume_all();
+                }
+                if m_act.pause_all {
+                    self.pause_all();
+                }
+                if m_act.select_all {
+                    for id in &filtered_ids {
+                        self.selected_ids.insert(id.clone());
+                    }
+                }
+                if m_act.clear_selection {
+                    self.selected_ids.clear();
+                }
+                if let Some(cat) = m_act.set_category {
+                    self.selected_category = cat;
+                }
+                if m_act.toggle_theme {
+                    self.toggle_theme(ctx);
+                }
+                if m_act.open_options {
+                    self.show_settings_dialog = true;
+                }
+                if m_act.toggle_clipboard {
+                    self.setting_clipboard_monitor = !self.setting_clipboard_monitor;
+                    let db = self.queue.db().clone();
+                    let val = if self.setting_clipboard_monitor { "true" } else { "false" };
+                    tokio::spawn(async move {
+                        let _ = db.set_setting("clipboard_monitor_enabled", val).await;
+                    });
+                }
+                if m_act.open_downloads_dir {
+                    let dir = Category::General.default_dir().to_string_lossy().to_string();
+                    platform::shell_open_folder_and_select(&dir);
+                }
+                if m_act.open_about {
+                    self.show_about_dialog = true;
                 }
             });
 
-        // Persist Tab & Category changes
-        if self.selected_tab != prev_tab {
-            let tab_str = match self.selected_tab {
-                FilterTab::All => "all",
-                FilterTab::Downloading => "downloading",
-                FilterTab::Completed => "completed",
-                FilterTab::Paused => "paused",
-            };
-            let q = Arc::clone(&self.queue);
-            tokio::spawn(async move {
-                let _ = q.db().set_setting("ui_selected_tab", tab_str).await;
+        // 3. Toolbar (.toolbar)
+        egui::TopBottomPanel::top("cosmo_toolbar")
+            .exact_height(60.0)
+            .frame(egui::Frame::none().fill(pal.surface).inner_margin(Margin::same(0.0)))
+            .show(ctx, |ui| {
+                let tb = toolbar::render_toolbar(ui, pal, !self.selected_ids.is_empty());
+                if tb.add_clicked {
+                    self.show_add_dialog = true;
+                }
+                if tb.resume_clicked {
+                    self.resume_selected();
+                }
+                if tb.pause_clicked {
+                    self.pause_selected();
+                }
+                if tb.delete_clicked {
+                    self.delete_selected();
+                }
+                if tb.options_clicked {
+                    self.show_settings_dialog = true;
+                }
             });
-        }
+
+        // 4. Bottom Status Bar (.status)
+        egui::TopBottomPanel::bottom("cosmo_status_bar")
+            .exact_height(28.0)
+            .frame(egui::Frame::none().fill(pal.raise).inner_margin(Margin::same(0.0)))
+            .show(ctx, |ui| {
+                status_bar::render_status_bar(
+                    ui,
+                    pal,
+                    filtered_count,
+                    total_speed,
+                    env!("CARGO_PKG_VERSION"),
+                );
+            });
+
+        // 5. Left Sidebar (.side)
+        let pal_refresh = theme::palette(self.is_dark);
+        egui::SidePanel::left("cosmo_sidebar")
+            .resizable(false)
+            .exact_width(200.0)
+            .frame(
+                egui::Frame::none()
+                    .fill(pal_refresh.bg)
+                    .inner_margin(Margin::same(12.0)),
+            )
+            .show(ctx, |ui| {
+                // Right 1px divider line
+                let r = ui.max_rect();
+                ui.painter().line_segment(
+                    [egui::pos2(r.right() + 12.0, r.top() - 12.0), egui::pos2(r.right() + 12.0, r.bottom() + 12.0)],
+                    Stroke::new(1.0_f32, pal_refresh.line),
+                );
+                nav_rail::render_category_sidebar(ui, pal_refresh, &mut self.selected_category, &cat_counts);
+            });
+
         if self.selected_category != prev_cat {
             let cat_str = match self.selected_category {
                 CategoryFilter::All => "all",
@@ -1026,112 +1249,24 @@ impl eframe::App for CosmoDownloaderApp {
             });
         }
 
-        // Central Content Area
+        // 6. Central Downloads Table (.tbl)
         egui::CentralPanel::default()
-            .frame(egui::Frame::none().fill(colors::SURFACE).inner_margin(Margin::same(0.0)))
+            .frame(egui::Frame::none().fill(pal_refresh.surface).inner_margin(Margin::same(0.0)))
             .show(ctx, |ui| {
-                let has_active = self.downloads.iter().any(|d| d.status == "downloading" || d.status == "queued");
-                let has_paused = self.downloads.iter().any(|d| d.status == "paused");
-                let total_speed: f64 = self.active_progress.values().map(|p| p.speed_bps).sum();
-
-                // Top Control Bar (Category Chips + Action Buttons)
-                let top_action = top_bar::render_top_bar(ui, &mut self.selected_category, has_active, has_paused, total_speed);
-
-                if top_action.pause_all_clicked {
-                    let q = Arc::clone(&self.queue);
-                    let ids: Vec<String> = self.downloads.iter()
-                        .filter(|d| d.status == "downloading" || d.status == "queued")
-                        .map(|d| d.id.clone())
-                        .collect();
-                    tokio::spawn(async move {
-                        for id in ids {
-                            let _ = q.pause(&id).await;
-                        }
-                    });
-                }
-
-                if top_action.resume_all_clicked {
-                    let q = Arc::clone(&self.queue);
-                    let ids: Vec<String> = self.downloads.iter()
-                        .filter(|d| d.status == "paused" || d.status == "failed")
-                        .map(|d| d.id.clone())
-                        .collect();
-                    tokio::spawn(async move {
-                        for id in ids {
-                            let _ = q.resume(&id).await;
-                        }
-                    });
-                }
-
-                if top_action.settings_clicked {
-                    self.show_settings_dialog = true;
-                }
-
-                // Downloads List View
-                let filtered_downloads: Vec<&DownloadRecord> = self.downloads.iter().filter(|d| {
-                    let status_match = match self.selected_tab {
-                        FilterTab::All => true,
-                        FilterTab::Downloading => d.status == "downloading" || d.status == "queued",
-                        FilterTab::Completed => d.status == "completed",
-                        FilterTab::Paused => d.status == "paused",
-                    };
-                    let cat_match = self.selected_category.matches(&d.category);
-                    status_match && cat_match
-                }).collect();
-
-                let list_frame = egui::Frame::none().inner_margin(Margin::symmetric(14.0, 10.0));
-                list_frame.show(ui, |ui| {
-                    if filtered_downloads.is_empty() {
-                        let (title, subtitle, action_label) = match (self.selected_tab, self.selected_category) {
-                            (FilterTab::All, CategoryFilter::All) => (
-                                "No downloads yet".to_string(),
-                                "Downloads captured from browser extensions or clipboard will appear here.",
-                                "New download",
-                            ),
-                            (tab, cat) => {
-                                let cat_name = match cat {
-                                    CategoryFilter::All => "".to_string(),
-                                    CategoryFilter::Video => "video".to_string(),
-                                    CategoryFilter::Music => "music".to_string(),
-                                    CategoryFilter::Documents => "document".to_string(),
-                                    CategoryFilter::Compressed => "archive".to_string(),
-                                    CategoryFilter::Programs => "program".to_string(),
-                                    CategoryFilter::Other => "other".to_string(),
-                                };
-                                let title = match tab {
-                                    FilterTab::Downloading => if cat_name.is_empty() { "No active downloads".to_string() } else { format!("No {} downloads in progress", cat_name) },
-                                    FilterTab::Paused => if cat_name.is_empty() { "No paused downloads".to_string() } else { format!("No paused {} downloads", cat_name) },
-                                    FilterTab::Completed => if cat_name.is_empty() { "No completed downloads".to_string() } else { format!("No completed {} downloads", cat_name) },
-                                    FilterTab::All => format!("No {} downloads found", cat_name),
-                                };
-                                (title, "", "Clear filter")
-                            }
-                        };
-
-                        if empty_state::render_empty_state(ui, &title, subtitle, action_label) {
-                            if action_label == "Clear filter" {
-                                self.selected_tab = FilterTab::All;
-                                self.selected_category = CategoryFilter::All;
-                            } else {
-                                self.show_add_dialog = true;
-                            }
-                        }
-                    } else {
-                        egui::ScrollArea::vertical().show(ui, |ui| {
-                            ui.spacing_mut().item_spacing.y = 2.0;
-                            for record in filtered_downloads {
-                                download_card::render_download_card(
-                                    ui,
-                                    record,
-                                    &self.active_progress,
-                                    &self.ema_speeds,
-                                    &self.queue,
-                                    &mut self.confirm_delete_id,
-                                );
-                            }
-                        });
-                    }
-                });
+                let filtered_downloads: Vec<&DownloadRecord> = self
+                    .downloads
+                    .iter()
+                    .filter(|d| self.selected_category.matches(&d.category))
+                    .collect();
+                download_table::render_download_table(
+                    ui,
+                    pal_refresh,
+                    &filtered_downloads,
+                    &self.active_progress,
+                    &self.ema_speeds,
+                    &mut self.selected_ids,
+                    &self.queue,
+                );
             });
 
         // Add Download Modal Dialog
@@ -1140,11 +1275,18 @@ impl eframe::App for CosmoDownloaderApp {
                 .collapsible(false)
                 .resizable(false)
                 .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-                .frame(egui::Frame::none().fill(colors::SURFACE).stroke(Stroke::new(1.0_f32, colors::LINE)).inner_margin(Margin::same(20.0)).rounding(shapes::R))
+                .frame(
+                    egui::Frame::none()
+                        .fill(pal_refresh.surface)
+                        .stroke(Stroke::new(1.0_f32, pal_refresh.line))
+                        .inner_margin(Margin::same(20.0))
+                        .rounding(shapes::R),
+                )
                 .show(ctx, |ui| {
                     ui.set_width(440.0);
                     let outcome = render_add_download_dialog(
                         ui,
+                        pal_refresh,
                         &mut self.add_url,
                         &mut self.add_filename,
                         &mut self.add_category,
@@ -1181,10 +1323,16 @@ impl eframe::App for CosmoDownloaderApp {
                     .collapsible(false)
                     .resizable(false)
                     .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-                    .frame(egui::Frame::none().fill(colors::SURFACE_CONTAINER_HIGH).inner_margin(Margin::same(18.0)).rounding(shapes::SHAPE_EXTRA_LARGE))
+                    .frame(
+                        egui::Frame::none()
+                            .fill(pal_refresh.surface)
+                            .stroke(Stroke::new(1.0_f32, pal_refresh.line))
+                            .inner_margin(Margin::same(18.0))
+                            .rounding(shapes::R),
+                    )
                     .show(ctx, |ui| {
                         ui.set_width(520.0);
-                        let outcome = render_complete_dialog(ui, record);
+                        let outcome = render_complete_dialog(ui, pal_refresh, record);
                         if outcome.close {
                             close_complete_dialog = true;
                         }
@@ -1195,18 +1343,25 @@ impl eframe::App for CosmoDownloaderApp {
             self.completed_dialog_record = None;
         }
 
-        // Settings Modal Dialog
+        // Options / Settings Modal Dialog
         if self.show_settings_dialog {
-            egui::Window::new("Preferences")
+            egui::Window::new("Options")
                 .collapsible(false)
                 .resizable(false)
                 .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
-                .frame(egui::Frame::none().fill(colors::SURFACE_CONTAINER_HIGH).inner_margin(Margin::same(18.0)).rounding(shapes::SHAPE_EXTRA_LARGE))
+                .frame(
+                    egui::Frame::none()
+                        .fill(pal_refresh.surface)
+                        .stroke(Stroke::new(1.0_f32, pal_refresh.line))
+                        .inner_margin(Margin::same(18.0))
+                        .rounding(shapes::R),
+                )
                 .show(ctx, |ui| {
                     ui.set_width(420.0);
                     let prev_tray = self.setting_show_tray_icon;
                     let outcome = render_settings_dialog(
                         ui,
+                        pal_refresh,
                         &mut self.setting_max_concurrent,
                         &mut self.setting_global_speed_kb,
                         &mut self.setting_clipboard_monitor,
@@ -1246,6 +1401,61 @@ impl eframe::App for CosmoDownloaderApp {
                         });
                         platform::set_autostart_enabled(autostart, start_min);
                     }
+                });
+        }
+
+        // About Modal Dialog
+        if self.show_about_dialog {
+            egui::Window::new("About Cosmo Downloader")
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
+                .frame(
+                    egui::Frame::none()
+                        .fill(pal_refresh.surface)
+                        .stroke(Stroke::new(1.0_f32, pal_refresh.line))
+                        .inner_margin(Margin::same(20.0))
+                        .rounding(shapes::R),
+                )
+                .show(ctx, |ui| {
+                    ui.set_width(340.0);
+                    ui.horizontal(|ui| {
+                        if let Some(tex) = &self.logo_texture {
+                            ui.image((tex.id(), Vec2::splat(28.0)));
+                            ui.add_space(6.0);
+                        }
+                        ui.vertical(|ui| {
+                            ui.label(
+                                egui::RichText::new("Cosmo Downloader")
+                                    .size(16.0)
+                                    .strong()
+                                    .color(pal_refresh.text),
+                            );
+                            ui.label(
+                                egui::RichText::new(format!("Version {} · © 2026 Mahedi", env!("CARGO_PKG_VERSION")))
+                                    .size(12.5)
+                                    .color(pal_refresh.muted),
+                            );
+                        });
+                    });
+                    ui.add_space(10.0);
+                    ui.label(
+                        egui::RichText::new("Fast multi-segment download manager for Windows with seamless browser integration.")
+                            .size(13.0)
+                            .color(pal_refresh.text),
+                    );
+                    ui.add_space(16.0);
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let ok_btn = egui::Button::new(
+                            egui::RichText::new("Close").size(13.0).color(pal_refresh.on_accent),
+                        )
+                        .fill(pal_refresh.accent)
+                        .min_size(Vec2::new(80.0, shapes::CONTROL_HEIGHT))
+                        .rounding(shapes::R_SM);
+                        if ui.add(ok_btn).clicked() {
+                            self.show_about_dialog = false;
+                        }
+                    });
                 });
         }
     }

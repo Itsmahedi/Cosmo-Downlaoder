@@ -1,5 +1,5 @@
 /**
- * ✦ Cosmo Downloader v1.11 — Service Worker (Manifest V3)
+ * Cosmo Downloader v1.1.0 — Service Worker (Manifest V3)
  * 
  * Handles:
  *  1. Native messaging connection (com.cosmodownloader.downloader / com.rustget.downloader)
@@ -379,5 +379,5 @@ chrome.storage.local.get("interceptEnabled", (result) => {
 });
 
 connectNativeHost();
-console.log("[Cosmo Downloader] Service worker active Ã¢â‚¬â€ v1.6.0");
+console.log("[Cosmo Downloader] Service worker active - v1.1.0");
 

@@ -85,7 +85,7 @@ $hostExe = Join-Path $sourceDir "cosmodownloader-host.exe"
 $sourceBinaries = @($mainExe, $cliExe, $hostExe)
 foreach ($bin in $sourceBinaries) {
     if (-not (Test-Path $bin)) {
-        throw "Required binary missing in $sourceDir: $(Split-Path -Leaf $bin). Please run cargo build."
+        throw "Required binary missing in ${sourceDir}: $(Split-Path -Leaf $bin). Please run cargo build."
     }
 }
 
@@ -138,6 +138,12 @@ try {
     $legacyHost = Join-Path $targetInstallDir "rustget-host.exe"
     Copy-Item -Path $cliExe -Destination $legacyCli -Force
     Copy-Item -Path $hostExe -Destination $legacyHost -Force
+
+    # Copy application icon used by shortcuts
+    $iconSrc = Join-Path $RootDir "icon.ico"
+    if (Test-Path $iconSrc) {
+        Copy-Item -Path $iconSrc -Destination (Join-Path $targetInstallDir "icon.ico") -Force
+    }
 
     # Copy extension folders and manifests
     $extSrc = Join-Path $RootDir "browser-extensions"

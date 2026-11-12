@@ -113,7 +113,8 @@ fn main() -> eframe::Result<()> {
         viewport = viewport
             .with_app_id("cosmo-downloader")
             .with_title(APP_TITLE)
-            .with_inner_size([880.0, 560.0])
+            .with_decorations(false)
+            .with_inner_size([920.0, 580.0])
             .with_min_inner_size([640.0, 440.0])
             .with_resizable(true)
             .with_visible(false)
@@ -122,7 +123,8 @@ fn main() -> eframe::Result<()> {
         viewport = viewport
             .with_app_id("cosmo-downloader")
             .with_title(APP_TITLE)
-            .with_inner_size([880.0, 560.0])
+            .with_decorations(false)
+            .with_inner_size([920.0, 580.0])
             .with_min_inner_size([640.0, 440.0])
             .with_resizable(true)
             .with_visible(true)

@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use eframe::egui::{self, Color32, Margin, Pos2, Rect, Stroke, Vec2};
-use crate::theme::{colors, shapes};
+use crate::theme::{shapes, ThemeColors};
 use crate::icons;
 use rustget_core::{
     categorize,
@@ -17,6 +17,7 @@ pub struct AddDialogOutcome {
 
 pub fn render_add_download_dialog(
     ui: &mut egui::Ui,
+    pal: &ThemeColors,
     url: &mut String,
     filename: &mut String,
     category: &mut String,
@@ -35,18 +36,17 @@ pub fn render_add_download_dialog(
 
     ui.spacing_mut().item_spacing.y = shapes::S2;
 
-    // Header: Title
     ui.label(
         egui::RichText::new("New download")
             .size(16.0)
             .strong()
-            .color(colors::TEXT),
+            .color(pal.text),
     );
 
     ui.add_space(shapes::S1);
 
     // 1. Link Field
-    ui.label(egui::RichText::new("Link").size(12.0).color(colors::MUTED));
+    ui.label(egui::RichText::new("Link").size(12.0).color(pal.muted));
     let url_edit = egui::TextEdit::singleline(url)
         .desired_width(ui.available_width())
         .min_size(Vec2::new(ui.available_width(), shapes::CONTROL_HEIGHT))
@@ -74,24 +74,22 @@ pub fn render_add_download_dialog(
 
     ui.add_space(shapes::S1);
 
-    // 2. File Card Preview (Subtle top and bottom border)
+    // 2. File Card Preview
     let card_w = ui.available_width();
     let card_rect = ui.allocate_space(Vec2::new(card_w, 44.0)).1;
 
-    // Top border
     ui.painter().line_segment(
         [card_rect.left_top(), card_rect.right_top()],
-        Stroke::new(1.0_f32, colors::LINE),
+        Stroke::new(1.0_f32, pal.line),
     );
-    // Bottom border
     ui.painter().line_segment(
         [card_rect.left_bottom(), card_rect.right_bottom()],
-        Stroke::new(1.0_f32, colors::LINE),
+        Stroke::new(1.0_f32, pal.line),
     );
 
     let mid_y = card_rect.center().y;
     let icon_rect = Rect::from_center_size(Pos2::new(card_rect.left() + 16.0, mid_y), Vec2::splat(18.0));
-    icons::draw_category_symbol(ui.painter(), icon_rect, category);
+    icons::draw_category_symbol(ui.painter(), icon_rect, category, pal.muted);
 
     let text_x = card_rect.left() + 38.0;
     let display_name = if filename.trim().is_empty() {
@@ -104,10 +102,9 @@ pub fn render_add_download_dialog(
         egui::Align2::LEFT_TOP,
         display_name,
         egui::FontId::proportional(13.0),
-        colors::TEXT,
+        pal.text,
     );
 
-    // Size / Status
     let meta_text = if rustget_core::youtube::is_streaming_site(url) {
         format!("{}, Adaptive stream", category)
     } else if let Some(sz) = file_size {
@@ -120,13 +117,13 @@ pub fn render_add_download_dialog(
         egui::Align2::LEFT_TOP,
         meta_text,
         egui::FontId::proportional(11.5),
-        colors::MUTED,
+        pal.muted,
     );
 
     ui.add_space(shapes::S1);
 
-    // 3. Category Field (Split ComboBox + Plus)
-    ui.label(egui::RichText::new("Category").size(12.0).color(colors::MUTED));
+    // 3. Category Field
+    ui.label(egui::RichText::new("Category").size(12.0).color(pal.muted));
     ui.horizontal(|ui| {
         egui::ComboBox::from_id_salt("cat_select_clean")
             .selected_text(&*category)
@@ -144,15 +141,15 @@ pub fn render_add_download_dialog(
         let plus_btn = egui::Button::new("+")
             .min_size(Vec2::new(32.0, shapes::CONTROL_HEIGHT))
             .rounding(shapes::R_SM);
-        if ui.add(plus_btn).on_hover_text("Configure categories in Settings").clicked() {
+        if ui.add(plus_btn).on_hover_text("Configure categories in Options").clicked() {
             outcome.open_settings = true;
         }
     });
 
     ui.add_space(shapes::S1);
 
-    // 4. Save to Field (Split Input + Browse Button)
-    ui.label(egui::RichText::new("Save to").size(12.0).color(colors::MUTED));
+    // 4. Save to Field
+    ui.label(egui::RichText::new("Save to").size(12.0).color(pal.muted));
     ui.horizontal(|ui| {
         let input_w = (ui.available_width() - 72.0).max(100.0);
         let mut full_target = PathBuf::from(&*save_dir);
@@ -202,21 +199,19 @@ pub fn render_add_download_dialog(
 
     ui.add_space(shapes::S1);
 
-    // 5. Remember Checkbox
     let remember_label = format!("Use this folder for {} next time", category.to_lowercase());
     ui.checkbox(
         remember_category,
-        egui::RichText::new(remember_label).size(12.0).color(colors::MUTED),
+        egui::RichText::new(remember_label).size(12.0).color(pal.muted),
     );
 
-    // 6. Optional Note link
     if !*show_notes_expanded && description.trim().is_empty() {
-        if ui.button(egui::RichText::new("Add a note").size(12.0).color(colors::ACCENT)).clicked() {
+        if ui.button(egui::RichText::new("Add a note").size(12.0).color(pal.accent)).clicked() {
             *show_notes_expanded = true;
         }
     } else {
         ui.add_space(shapes::S1);
-        ui.label(egui::RichText::new("Note").size(12.0).color(colors::MUTED));
+        ui.label(egui::RichText::new("Note").size(12.0).color(pal.muted));
         ui.add(
             egui::TextEdit::singleline(description)
                 .desired_width(ui.available_width())
@@ -227,13 +222,11 @@ pub fn render_add_download_dialog(
 
     ui.add_space(shapes::S3);
 
-    // 7. Footer: Start Download (Primary), Download Later (Outline), Spacer, Cancel (Ghost)
     ui.horizontal(|ui| {
-        // Start download (Primary accent button)
         let start_btn = egui::Button::new(
-            egui::RichText::new("Start download").size(13.0).color(colors::ON_ACCENT),
+            egui::RichText::new("Start download").size(13.0).color(pal.on_accent),
         )
-        .fill(colors::ACCENT)
+        .fill(pal.accent)
         .min_size(Vec2::new(125.0, shapes::CONTROL_HEIGHT))
         .rounding(shapes::R_SM);
 
@@ -243,12 +236,11 @@ pub fn render_add_download_dialog(
 
         ui.add_space(shapes::S2);
 
-        // Download later (Outline button)
         let later_btn = egui::Button::new(
-            egui::RichText::new("Download later").size(13.0).color(colors::TEXT),
+            egui::RichText::new("Download later").size(13.0).color(pal.text),
         )
         .fill(Color32::TRANSPARENT)
-        .stroke(Stroke::new(1.0_f32, colors::LINE))
+        .stroke(Stroke::new(1.0_f32, pal.line))
         .min_size(Vec2::new(115.0, shapes::CONTROL_HEIGHT))
         .rounding(shapes::R_SM);
 
@@ -257,9 +249,8 @@ pub fn render_add_download_dialog(
         }
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            // Cancel (Ghost button)
             let cancel_btn = egui::Button::new(
-                egui::RichText::new("Cancel").size(13.0).color(colors::MUTED),
+                egui::RichText::new("Cancel").size(13.0).color(pal.muted),
             )
             .fill(Color32::TRANSPARENT)
             .min_size(Vec2::new(60.0, shapes::CONTROL_HEIGHT))
