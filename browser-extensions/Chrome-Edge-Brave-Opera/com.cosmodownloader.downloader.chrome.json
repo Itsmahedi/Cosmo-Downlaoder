@@ -4,7 +4,6 @@
   "path": "cosmodownloader-host.exe",
   "type": "stdio",
   "allowed_origins": [
-    "chrome-extension://*",
-    "chrome-extension://knldjmfmopnplkmfocnjbfkbbdjodkdf/"
+    "chrome-extension://lbifcbhmdjlhmcfipfdodbdljmcbdanf/"
   ]
 }

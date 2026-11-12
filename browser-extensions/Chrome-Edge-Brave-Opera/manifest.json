@@ -5,17 +5,7 @@
   "version_name": "v1.1",
   "description": "High-speed multi-threaded download manager with cosmic acceleration engine. Created by Mahedi.",
   "author": "Mahedi",
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "rustget@downloader.addon",
-      "strict_min_version": "140.0",
-      "data_collection_permissions": {
-        "required": [
-          "none"
-        ]
-      }
-    }
-  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu1yWEkyUYNktcAQCtKbL+EOZKffY2XeXekiiH4Q0IrMN1iZGponby0MtO3CWf2pdLtqAwuFdX0dKq68DDS8n6zf6LU1OElPzAXxRmJuiNIin9vb0869mcyAQ7devO4lpK03oHUpWxtctc3UtAXqIuT1/3jdM7sS3qM22D9uYiv1ZryUUdh9DFemRMe9L94+K/mLAPkkPGZaUDDA3/YYz4CsK4e78x9lhzvG3+O7fEuf/7sqSzWnr7RiIMYq4SDL/6Mzv5h6b5azwMP/ubKNf7Db+I0uwUhwq/t2pHHLi5I72CQC+TR84WUaAx3iBlSGeskqN/1se9PDguo8e/fRFTQIDAQAB",
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",
@@ -28,8 +18,7 @@
     "activeTab",
     "tabs",
     "storage",
-    "contextMenus",
-    "scripting"
+    "contextMenus"
   ],
   "host_permissions": [
     "<all_urls>",

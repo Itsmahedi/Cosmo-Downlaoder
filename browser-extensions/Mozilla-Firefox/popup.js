@@ -15,6 +15,11 @@ const interceptedCountEl = document.getElementById("interceptedCount");
 const urlInput = document.getElementById("urlInput");
 const addUrlBtn = document.getElementById("addUrlBtn");
 const urlFeedback = document.getElementById("urlFeedback");
+const extFilterInput = document.getElementById("extFilterInput");
+const minSizeInput = document.getElementById("minSizeInput");
+const excludedSitesInput = document.getElementById("excludedSitesInput");
+const saveFiltersBtn = document.getElementById("saveFiltersBtn");
+const filterSavedMsg = document.getElementById("filterSavedMsg");
 
 const runtime = typeof browser !== "undefined" ? browser : chrome;
 
@@ -49,6 +54,11 @@ function updateStatus() {
       applyState("amber", "App closed");
     } else {
       applyState("disconnected", "Host bridge not detected");
+    }
+
+    if (statusError && response.lastError) {
+      statusError.textContent = response.lastError;
+      statusError.style.display = "block";
     }
   });
 }
@@ -188,7 +198,47 @@ if (urlInput) {
   });
 }
 
-// Initial status polling
+function loadFilterConfig() {
+  runtime.runtime.sendMessage({ action: "getConfig" }, (cfg) => {
+    if (runtime.runtime.lastError || !cfg) return;
+    if (extFilterInput && typeof cfg.filterExtensions === "string") {
+      extFilterInput.value = cfg.filterExtensions;
+    }
+    if (minSizeInput && typeof cfg.minSizeKb === "number") {
+      minSizeInput.value = String(cfg.minSizeKb);
+    }
+    if (excludedSitesInput && typeof cfg.excludedSites === "string") {
+      excludedSitesInput.value = cfg.excludedSites;
+    }
+  });
+}
+
+if (saveFiltersBtn) {
+  saveFiltersBtn.addEventListener("click", () => {
+    runtime.runtime.sendMessage(
+      {
+        action: "saveConfig",
+        filterExtensions: extFilterInput ? extFilterInput.value : "",
+        minSizeKb: minSizeInput ? Number(minSizeInput.value) : 0,
+        excludedSites: excludedSitesInput ? excludedSitesInput.value : "",
+      },
+      (res) => {
+        if (res && res.success) {
+          if (extFilterInput) extFilterInput.value = res.filterExtensions;
+          if (minSizeInput) minSizeInput.value = String(res.minSizeKb);
+          if (excludedSitesInput) excludedSitesInput.value = res.excludedSites;
+          if (filterSavedMsg) {
+            filterSavedMsg.textContent = "Saved";
+            setTimeout(() => { filterSavedMsg.textContent = ""; }, 2000);
+          }
+        }
+      }
+    );
+  });
+}
+
+// Initial status & config loading
+loadFilterConfig();
 updateStatus();
 const interval = setInterval(updateStatus, 3000);
 

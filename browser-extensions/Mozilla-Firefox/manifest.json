@@ -7,7 +7,7 @@
   "author": "Mahedi",
   "browser_specific_settings": {
     "gecko": {
-      "id": "rustget@downloader.addon",
+      "id": "cosmodownloader@downloader.addon",
       "strict_min_version": "140.0",
       "data_collection_permissions": {
         "required": [
@@ -28,8 +28,7 @@
     "activeTab",
     "tabs",
     "storage",
-    "contextMenus",
-    "scripting"
+    "contextMenus"
   ],
   "host_permissions": [
     "<all_urls>",

@@ -408,39 +408,60 @@ fn find_app_exe() -> Option<PathBuf> {
     if let Ok(mut exe) = std::env::current_exe() {
         exe.pop();
         let candidate_win = exe.join("CosmoDownloader.exe");
-        if candidate_win.is_file() && candidate_win.exists() {
+        if candidate_win.is_file() {
             return Some(candidate_win);
         }
-        let candidate_nix = exe.join("CosmoDownloader");
-        if candidate_nix.is_file() && candidate_nix.exists() {
-            return Some(candidate_nix);
+        let candidate_legacy = exe.join("rustget-gui.exe");
+        if candidate_legacy.is_file() {
+            return Some(candidate_legacy);
         }
     }
 
-    // 2. Query Windows Registry for Cosmo Downloader install path
+    // 2. Query Windows Registry for Cosmo Downloader install / startup path
     #[cfg(windows)]
     {
-        if let Ok(out) = std::process::Command::new("reg")
-            .args(&["query", "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "/v", "Cosmo Downloader"])
-            .output()
-        {
-            if out.status.success() {
-                let s = String::from_utf8_lossy(&out.stdout);
-                for token in s.split('"') {
-                    let p = PathBuf::from(token);
-                    if p.is_file() && p.exists() {
-                        return Some(p);
+        for (key, val) in [
+            (r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run", "Cosmo Downloader"),
+            (r"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\{D37E7492-3580-4D3B-A924-E8251C9B71C8}_is1", "InstallLocation"),
+            (r"HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\{D37E7492-3580-4D3B-A924-E8251C9B71C8}_is1", "InstallLocation"),
+        ] {
+            if let Ok(out) = std::process::Command::new("reg")
+                .args(["query", key, "/v", val])
+                .creation_flags(0x08000000)
+                .output()
+            {
+                if out.status.success() {
+                    let s = String::from_utf8_lossy(&out.stdout);
+                    for token in s.split('"') {
+                        let p = PathBuf::from(token.trim());
+                        if p.is_file() {
+                            return Some(p);
+                        }
+                        if p.is_dir() && p.join("CosmoDownloader.exe").is_file() {
+                            return Some(p.join("CosmoDownloader.exe"));
+                        }
+                    }
+                    if let Some(idx) = s.find("REG_SZ") {
+                        let raw_val = s[idx + 6..].trim().trim_matches('"');
+                        let p = PathBuf::from(raw_val);
+                        if p.is_dir() && p.join("CosmoDownloader.exe").is_file() {
+                            return Some(p.join("CosmoDownloader.exe"));
+                        }
                     }
                 }
             }
         }
     }
 
-    // 3. User local app data directory
+    // 3. Standard non-admin & per-user Inno Setup install directories
     if let Some(dirs) = directories::BaseDirs::new() {
-        let p = dirs.data_local_dir().join("Cosmo Downloader").join("CosmoDownloader.exe");
-        if p.is_file() && p.exists() {
-            return Some(p);
+        for candidate in [
+            dirs.data_local_dir().join("Programs").join("Cosmo Downloader").join("CosmoDownloader.exe"),
+            dirs.data_local_dir().join("Cosmo Downloader").join("CosmoDownloader.exe"),
+        ] {
+            if candidate.is_file() {
+                return Some(candidate);
+            }
         }
     }
 
@@ -459,41 +480,67 @@ async fn trigger_show_window() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(windows)]
+fn reg_add_default_str(key: &str, value: &str) {
+    let _ = Command::new("reg")
+        .args(["add", key, "/ve", "/t", "REG_SZ", "/d", value, "/f"])
+        .creation_flags(0x08000000)
+        .output();
+}
+
+#[cfg(not(windows))]
+fn reg_add_default_str(_key: &str, _value: &str) {}
+
+#[cfg(windows)]
+fn reg_delete_key(key: &str) {
+    let _ = Command::new("reg")
+        .args(["delete", key, "/f"])
+        .creation_flags(0x08000000)
+        .output();
+}
+
+#[cfg(not(windows))]
+fn reg_delete_key(_key: &str) {}
+
 fn register_manifests(chrome_manifest: &Path) -> anyhow::Result<()> {
-    let chrome_path_str = chrome_manifest.to_string_lossy();
+    let manifest_dir = chrome_manifest.parent().unwrap_or_else(|| Path::new("."));
+    let chrome_file = if chrome_manifest.exists() {
+        chrome_manifest.to_path_buf()
+    } else {
+        manifest_dir.join(format!("{}.chrome.json", HOST_NAME))
+    };
+    let edge_candidate = manifest_dir.join(format!("{}.edge.json", HOST_NAME));
+    let edge_file = if edge_candidate.exists() { &edge_candidate } else { &chrome_file };
+    let firefox_file = manifest_dir.join(format!("{}.firefox.json", HOST_NAME));
 
-    for name in [HOST_NAME, LEGACY_HOST_NAME] {
-        // Register Chrome
-        let chrome_key = format!(r"HKCU\Software\Google\Chrome\NativeMessagingHosts\{}", name);
-        let _ = Command::new("reg")
-            .args(["add", &chrome_key, "/ve", "/t", "REG_SZ", "/d", &chrome_path_str, "/f"])
-            .status();
+    let chrome_str = chrome_file.to_string_lossy().to_string();
+    let edge_str = edge_file.to_string_lossy().to_string();
 
-        // Register Edge
-        let edge_key = format!(r"HKCU\Software\Microsoft\Edge\NativeMessagingHosts\{}", name);
-        let mut edge_path = chrome_manifest.to_path_buf();
-        edge_path.set_file_name(format!("{}.edge.json", name));
-        let edge_path_str = if edge_path.exists() {
-            edge_path.to_string_lossy().to_string()
-        } else {
-            chrome_path_str.to_string()
-        };
-        let _ = Command::new("reg")
-            .args(["add", &edge_key, "/ve", "/t", "REG_SZ", "/d", &edge_path_str, "/f"])
-            .status();
+    for reg_root in [
+        r"HKCU\Software\Google\Chrome\NativeMessagingHosts",
+        r"HKCU\Software\BraveSoftware\Brave-Browser\NativeMessagingHosts",
+        r"HKCU\Software\Chromium\NativeMessagingHosts",
+        r"HKCU\Software\Opera Software\Opera Stable\NativeMessagingHosts",
+    ] {
+        if chrome_file.exists() {
+            reg_add_default_str(&format!(r"{}\{}", reg_root, HOST_NAME), &chrome_str);
+        }
+    }
 
-        // Register Mozilla Firefox
-        let firefox_key = format!(r"HKCU\Software\Mozilla\NativeMessagingHosts\{}", name);
-        let mut firefox_path = chrome_manifest.to_path_buf();
-        firefox_path.set_file_name(format!("{}.firefox.json", name));
-        let firefox_path_str = if firefox_path.exists() {
-            firefox_path.to_string_lossy().to_string()
-        } else {
-            chrome_path_str.to_string()
-        };
-        let _ = Command::new("reg")
-            .args(["add", &firefox_key, "/ve", "/t", "REG_SZ", "/d", &firefox_path_str, "/f"])
-            .status();
+    if edge_file.exists() {
+        reg_add_default_str(
+            &format!(r"HKCU\Software\Microsoft\Edge\NativeMessagingHosts\{}", HOST_NAME),
+            &edge_str,
+        );
+    }
+
+    // Never overwrite Firefox NativeMessagingHosts with the Chrome manifest.
+    if firefox_file.exists() {
+        let firefox_str = firefox_file.to_string_lossy().to_string();
+        reg_add_default_str(
+            &format!(r"HKCU\Software\Mozilla\NativeMessagingHosts\{}", HOST_NAME),
+            &firefox_str,
+        );
     }
 
     eprintln!("Registered CosmoDownloader native messaging hosts in Windows Registry.");
@@ -501,15 +548,17 @@ fn register_manifests(chrome_manifest: &Path) -> anyhow::Result<()> {
 }
 
 fn unregister_manifests() -> anyhow::Result<()> {
-    for name in [HOST_NAME, LEGACY_HOST_NAME] {
-        let chrome_key = format!(r"HKCU\Software\Google\Chrome\NativeMessagingHosts\{}", name);
-        let _ = Command::new("reg").args(["delete", &chrome_key, "/f"]).status();
-
-        let edge_key = format!(r"HKCU\Software\Microsoft\Edge\NativeMessagingHosts\{}", name);
-        let _ = Command::new("reg").args(["delete", &edge_key, "/f"]).status();
-
-        let firefox_key = format!(r"HKCU\Software\Mozilla\NativeMessagingHosts\{}", name);
-        let _ = Command::new("reg").args(["delete", &firefox_key, "/f"]).status();
+    for reg_root in [
+        r"HKCU\Software\Google\Chrome\NativeMessagingHosts",
+        r"HKCU\Software\BraveSoftware\Brave-Browser\NativeMessagingHosts",
+        r"HKCU\Software\Chromium\NativeMessagingHosts",
+        r"HKCU\Software\Opera Software\Opera Stable\NativeMessagingHosts",
+        r"HKCU\Software\Microsoft\Edge\NativeMessagingHosts",
+        r"HKCU\Software\Mozilla\NativeMessagingHosts",
+    ] {
+        for name in [HOST_NAME, LEGACY_HOST_NAME] {
+            reg_delete_key(&format!(r"{}\{}", reg_root, name));
+        }
     }
 
     eprintln!("Unregistered Native Messaging hosts from Windows Registry.");

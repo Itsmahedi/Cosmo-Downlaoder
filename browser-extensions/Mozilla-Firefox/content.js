@@ -12,14 +12,38 @@
 const runtime = typeof browser !== "undefined" ? browser : (typeof chrome !== "undefined" ? chrome : null);
 
 const QUALITIES = [
-  { label: "1080p", meta: "148 MB", format: "1080p", audioOnly: false },
-  { label: "720p", meta: "82 MB", format: "720p", audioOnly: false },
-  { label: "480p", meta: "41 MB", format: "480p", audioOnly: false },
-  { label: "360p", meta: "24 MB", format: "360p", audioOnly: false },
+  { label: "1080p", meta: "Full HD (MP4)", format: "1080p", audioOnly: false },
+  { label: "720p", meta: "HD (MP4)", format: "720p", audioOnly: false },
+  { label: "480p", meta: "SD (MP4)", format: "480p", audioOnly: false },
+  { label: "360p", meta: "Low (MP4)", format: "360p", audioOnly: false },
   { divider: true },
-  { label: "Audio only", meta: "MP3, 9 MB", format: "audio", audioOnly: true },
+  { label: "Audio only", meta: "MP3 Audio", format: "audio", audioOnly: true },
   { label: "Best available", meta: "Auto", format: "best", audioOnly: false }
 ];
+
+let siteExcluded = false;
+function checkSiteExclusion() {
+  if (!runtime || !runtime.storage || !runtime.storage.local) return;
+  try {
+    runtime.storage.local.get("excludedSitesList", (res) => {
+      const host = (window.location.hostname || "").toLowerCase();
+      const raw = res && typeof res.excludedSitesList === "string" ? res.excludedSitesList : "";
+      const list = raw
+        .split(/[\s,;]+/)
+        .map((s) => s.trim().toLowerCase().replace(/^https?:\/\//, "").split("/")[0])
+        .filter(Boolean);
+      siteExcluded = list.some((d) => host === d || host.endsWith("." + d));
+      if (siteExcluded) {
+        for (const [videoEl, record] of activeAttachedButtons.entries()) {
+          record.cleanup();
+          activeAttachedButtons.delete(videoEl);
+        }
+      } else {
+        scanVideos();
+      }
+    });
+  } catch (_) {}
+}
 
 // Track injected UI elements per video element: Map<HTMLVideoElement, { container: HTMLElement, host: HTMLElement } >
 const activeAttachedButtons = new Map();
@@ -331,6 +355,7 @@ function triggerDownload(videoEl, format) {
  * Scans video elements, cleans up detached or unqualified buttons, and attaches to valid videos.
  */
 function scanVideos() {
+  if (siteExcluded) return;
   // 1. Audit active attachments: remove if video is detached or no longer qualifies
   for (const [videoEl, record] of activeAttachedButtons.entries()) {
     if (!videoEl.isConnected || isMiniPreview(videoEl)) {
@@ -358,8 +383,9 @@ function scanVideos() {
 // Debounced scan for dynamic mutations and SPA navigation
 let scanDebounceTimer = null;
 function debouncedScanVideos() {
+  if (siteExcluded) return;
   if (scanDebounceTimer) clearTimeout(scanDebounceTimer);
-  scanDebounceTimer = setTimeout(scanVideos, 150);
+  scanDebounceTimer = setTimeout(scanVideos, 200);
 }
 
 // Observe dynamic video additions
@@ -369,9 +395,22 @@ if (typeof MutationObserver !== "undefined" && typeof document !== "undefined" &
   });
   observer.observe(document.documentElement, { childList: true, subtree: true });
 
-  // Initial scan
+  // Initial scan + exclusion check
+  checkSiteExclusion();
   scanVideos();
-  setInterval(scanVideos, 2500);
+  setInterval(() => {
+    if (!siteExcluded && (isYouTubeHost() || document.querySelector("video") !== null)) {
+      scanVideos();
+    }
+  }, 3000);
+
+  if (runtime && runtime.storage && runtime.storage.onChanged) {
+    runtime.storage.onChanged.addListener((changes, area) => {
+      if (area === "local" && changes.excludedSitesList) {
+        checkSiteExclusion();
+      }
+    });
+  }
 
   // SPA navigation hooks
   window.addEventListener("yt-navigate-finish", () => {

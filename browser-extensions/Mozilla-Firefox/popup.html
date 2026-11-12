@@ -46,6 +46,23 @@
       <span class="launch-spinner" id="launchSpinner"></span>
       <span id="launchBtnText">Launch Cosmo</span>
     </button>
+
+    <!-- Filters & Site Exclusions -->
+    <details class="filters-box" id="filtersBox">
+      <summary>Filters &amp; site exclusions</summary>
+      <div class="filters-body">
+        <label class="filter-label" for="extFilterInput">File types (comma-separated)</label>
+        <input class="field small-field" id="extFilterInput" placeholder="zip, rar, 7z, exe, mp4, pdf" spellcheck="false">
+        <label class="filter-label" for="minSizeInput">Minimum size (KB, 0 = all matching)</label>
+        <input class="field small-field" id="minSizeInput" type="number" min="0" step="1" placeholder="10">
+        <label class="filter-label" for="excludedSitesInput">Excluded domains</label>
+        <input class="field small-field" id="excludedSitesInput" placeholder="example.com, intranet.local" spellcheck="false">
+        <div class="filter-actions">
+          <button class="btn outline small-btn" id="saveFiltersBtn" type="button">Save filters</button>
+          <span class="filter-saved" id="filterSavedMsg"></span>
+        </div>
+      </div>
+    </details>
   </div>
 
   <script src="popup.js"></script>
