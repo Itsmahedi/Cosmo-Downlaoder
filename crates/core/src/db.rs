@@ -389,6 +389,39 @@ impl Database {
         Ok(val)
     }
 
+    /// Reset retry_count to 0 so manually retried tasks get a full retry budget.
+    pub async fn reset_retry_count(&self, id: &str) -> Result<()> {
+        let conn = self.conn.lock().map_err(|_| DownloadError::StateCorrupted("Mutex poisoned".to_string()))?;
+        let now = Utc::now().to_rfc3339();
+        conn.execute(
+            "UPDATE downloads SET retry_count = 0, error_message = NULL, updated_at = ?1 WHERE id = ?2",
+            params![now, id],
+        )
+        .map_err(|e| DownloadError::StateCorrupted(e.to_string()))?;
+        Ok(())
+    }
+
+    /// Recover any tasks left in 'downloading' state after an unexpected crash or shutdown.
+    pub async fn recover_interrupted_downloads(&self) -> Result<usize> {
+        let conn = self.conn.lock().map_err(|_| DownloadError::StateCorrupted("Mutex poisoned".to_string()))?;
+        let now = Utc::now().to_rfc3339();
+        let count = conn
+            .execute(
+                "UPDATE downloads SET status = 'queued', updated_at = ?1 WHERE status = 'downloading'",
+                params![now],
+            )
+            .map_err(|e| DownloadError::StateCorrupted(e.to_string()))?;
+        Ok(count)
+    }
+
+    /// Checkpoint SQLite WAL cleanly during application shutdown.
+    pub async fn flush_wal(&self) -> Result<()> {
+        let conn = self.conn.lock().map_err(|_| DownloadError::StateCorrupted("Mutex poisoned".to_string()))?;
+        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+            .map_err(|e| DownloadError::StateCorrupted(e.to_string()))?;
+        Ok(())
+    }
+
     /// Set setting value.
     pub async fn set_setting(&self, key: &str, value: &str) -> Result<()> {
         let conn = self.conn.lock().map_err(|_| DownloadError::StateCorrupted("Mutex poisoned".to_string()))?;

@@ -106,6 +106,7 @@ struct SegmentWorkerTask {
     progress_notify: mpsc::Sender<()>,
     cancel: CancellationToken,
     rate_limiter: Option<TokenBucketRateLimiter>,
+    task_rate_limiter: Option<TokenBucketRateLimiter>,
 }
 
 /// Active download task manager.
@@ -114,16 +115,16 @@ pub struct Downloader {
     client: Client,
     cancel_token: CancellationToken,
     rate_limiter: Option<TokenBucketRateLimiter>,
+    task_rate_limiter: Option<TokenBucketRateLimiter>,
 }
 
 impl Downloader {
-    /// Create a new Downloader with the specified options and cancellation token.
-    pub fn new(options: DownloadOptions, cancel_token: CancellationToken) -> Self {
+    fn build_client(user_agent: Option<&str>, proxy_url: Option<&str>) -> Result<Client> {
         let mut client_builder = Client::builder()
             .timeout(Duration::from_secs(60))
             .connect_timeout(Duration::from_secs(15));
 
-        if let Some(ref ua) = options.user_agent {
+        if let Some(ua) = user_agent {
             if let Ok(val) = HeaderValue::from_str(ua) {
                 let mut default_headers = HeaderMap::new();
                 default_headers.insert(USER_AGENT, val);
@@ -131,19 +132,45 @@ impl Downloader {
             }
         }
 
-        let client = client_builder.build().unwrap_or_else(|_| Client::new());
+        if let Some(p) = proxy_url.map(str::trim).filter(|s| !s.is_empty()) {
+            let proxy = reqwest::Proxy::all(p).map_err(|e| {
+                DownloadError::InvalidUrl(format!("Invalid proxy URL '{}': {}", p, e))
+            })?;
+            client_builder = client_builder.proxy(proxy);
+        }
+
+        Ok(client_builder.build().unwrap_or_else(|_| Client::new()))
+    }
+
+    /// Create a new Downloader with the specified options and cancellation token.
+    pub fn new(options: DownloadOptions, cancel_token: CancellationToken) -> Self {
+        let client = Self::build_client(options.user_agent.as_deref(), None)
+            .unwrap_or_else(|_| Client::new());
 
         Self {
             options,
             client,
             cancel_token,
             rate_limiter: None,
+            task_rate_limiter: None,
         }
     }
 
-    /// Attach a rate limiter to throttle download throughput.
+    /// Configure an HTTP/HTTPS/SOCKS5 proxy on this downloader instance.
+    pub fn with_proxy(mut self, proxy_url: Option<&str>) -> Result<Self> {
+        self.client = Self::build_client(self.options.user_agent.as_deref(), proxy_url)?;
+        Ok(self)
+    }
+
+    /// Attach a global rate limiter to throttle aggregate download throughput.
     pub fn with_rate_limiter(mut self, limiter: TokenBucketRateLimiter) -> Self {
         self.rate_limiter = Some(limiter);
+        self
+    }
+
+    /// Attach a per-task rate limiter in addition to any global limiter.
+    pub fn with_task_rate_limiter(mut self, limiter: TokenBucketRateLimiter) -> Self {
+        self.task_rate_limiter = Some(limiter);
         self
     }
 
@@ -254,6 +281,13 @@ impl Downloader {
         // Ensure parent directory exists
         if let Some(parent) = part_path.parent() {
             fs::create_dir_all(parent).await?;
+        }
+
+        // Verify available disk space before allocating or streaming
+        if let Some(total) = state.total_size {
+            let already_allocated = fs::metadata(&part_path).await.map(|m| m.len()).unwrap_or(0);
+            let needed_additional = total.saturating_sub(already_allocated);
+            check_disk_space(&part_path, needed_additional)?;
         }
 
         // Send Allocating progress
@@ -390,6 +424,7 @@ impl Downloader {
         let client = self.client.clone();
         let url = state.url.clone();
         let rate_limiter = self.rate_limiter.clone();
+        let task_rate_limiter = self.task_rate_limiter.clone();
 
         // Channel for notifying progress updates
         let (bytes_tx, mut bytes_rx) = mpsc::channel::<()>(128);
@@ -418,6 +453,7 @@ impl Downloader {
                 progress_notify: bytes_tx.clone(),
                 cancel: worker_cancel.clone(),
                 rate_limiter: rate_limiter.clone(),
+                task_rate_limiter: task_rate_limiter.clone(),
             };
 
             let handle = tokio::spawn(async move {
@@ -601,9 +637,12 @@ impl Downloader {
             let slice_len = std::cmp::min(chunk.len() as u64, remaining_needed) as usize;
             let slice = &chunk[..slice_len];
 
-            // Throttle rate if limiter is configured
+            // Throttle rate if global or per-task limiters are configured
             if let Some(ref limiter) = task.rate_limiter {
                 limiter.acquire(slice_len).await;
+            }
+            if let Some(ref task_limiter) = task.task_rate_limiter {
+                task_limiter.acquire(slice_len).await;
             }
 
             file.write_all(slice).await?;
@@ -738,9 +777,12 @@ impl Downloader {
             let chunk = chunk_res?;
             let chunk_len = chunk.len();
 
-            // Throttle rate if limiter is configured
+            // Throttle rate if global or per-task limiters are configured
             if let Some(ref limiter) = self.rate_limiter {
                 limiter.acquire(chunk_len).await;
+            }
+            if let Some(ref task_limiter) = self.task_rate_limiter {
+                task_limiter.acquire(chunk_len).await;
             }
 
             file.write_all(&chunk).await?;
@@ -870,4 +912,63 @@ fn md5_or_simple_hash(input: &str) -> u64 {
     let mut hasher = DefaultHasher::new();
     input.hash(&mut hasher);
     hasher.finish()
+}
+
+/// Checks whether the destination drive has enough free space for `needed_bytes`.
+pub fn check_disk_space(target_path: &Path, needed_bytes: u64) -> Result<()> {
+    if needed_bytes == 0 {
+        return Ok(());
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn GetDiskFreeSpaceExW(
+                lpDirectoryName: *const u16,
+                lpFreeBytesAvailableToCaller: *mut u64,
+                lpTotalNumberOfBytes: *mut u64,
+                lpTotalNumberOfFreeBytes: *mut u64,
+            ) -> i32;
+        }
+        let mut dir = target_path.parent().unwrap_or_else(|| Path::new("."));
+        while !dir.exists() {
+            match dir.parent() {
+                Some(p) if !p.as_os_str().is_empty() => dir = p,
+                _ => break,
+            }
+        }
+        let check_dir = if dir.as_os_str().is_empty() {
+            Path::new(".")
+        } else {
+            dir
+        };
+        let wide: Vec<u16> = check_dir
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+        let mut free_avail: u64 = 0;
+        let ok = unsafe {
+            GetDiskFreeSpaceExW(
+                wide.as_ptr(),
+                &mut free_avail,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+            )
+        };
+        if ok != 0 && free_avail < needed_bytes {
+            return Err(DownloadError::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!(
+                    "Insufficient disk space: {} available, {} required",
+                    crate::speed::SpeedTracker::format_bytes(free_avail),
+                    crate::speed::SpeedTracker::format_bytes(needed_bytes)
+                ),
+            )));
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = target_path;
+    Ok(())
 }

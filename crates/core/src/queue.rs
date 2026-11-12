@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -35,6 +36,8 @@ pub struct QueueManager {
     active_tasks: Arc<Mutex<HashMap<String, CancellationToken>>>,
     global_limiter: TokenBucketRateLimiter,
     max_concurrent: Arc<Mutex<usize>>,
+    proxy_url: Arc<Mutex<Option<String>>>,
+    shutting_down: Arc<AtomicBool>,
     event_tx: mpsc::Sender<QueueEvent>,
 }
 
@@ -50,6 +53,8 @@ impl QueueManager {
             active_tasks: Arc::new(Mutex::new(HashMap::new())),
             global_limiter: TokenBucketRateLimiter::new(global_speed_bps),
             max_concurrent: Arc::new(Mutex::new(max_concurrent.clamp(1, 10))),
+            proxy_url: Arc::new(Mutex::new(None)),
+            shutting_down: Arc::new(AtomicBool::new(false)),
             event_tx,
         }
     }
@@ -68,6 +73,46 @@ impl QueueManager {
     /// Update global download speed limit in bytes/sec (0 = unlimited).
     pub async fn set_global_speed_limit(&self, bps: u64) {
         self.global_limiter.set_rate(bps).await;
+    }
+
+    /// Update the proxy URL used for future downloads (`None` or empty clears it).
+    pub async fn set_proxy(&self, proxy: Option<String>) {
+        let mut guard = self.proxy_url.lock().await;
+        *guard = proxy.and_then(|s| {
+            let trimmed = s.trim().to_string();
+            if trimmed.is_empty() { None } else { Some(trimmed) }
+        });
+    }
+
+    /// Recover any tasks left in `'downloading'` state after an unexpected crash or upgrade.
+    pub async fn recover_interrupted_downloads(&self) -> Result<usize> {
+        let count = self.db.recover_interrupted_downloads().await?;
+        if count > 0 {
+            info!("Recovered {} interrupted download(s) back to queued state", count);
+        }
+        Ok(count)
+    }
+
+    /// Gracefully cancel active downloads (preserving them as `'queued'` for auto-resume on next launch)
+    /// and checkpoint SQLite WAL before process exit.
+    pub async fn shutdown_and_save(&self) {
+        self.shutting_down.store(true, Ordering::SeqCst);
+        let tokens: Vec<CancellationToken> = {
+            let tasks = self.active_tasks.lock().await;
+            tasks.values().cloned().collect()
+        };
+        for tok in tokens {
+            tok.cancel();
+        }
+        let deadline = std::time::Instant::now() + Duration::from_secs(3);
+        while std::time::Instant::now() < deadline {
+            if self.active_tasks.lock().await.is_empty() {
+                break;
+            }
+            sleep(Duration::from_millis(50)).await;
+        }
+        let _ = self.db.recover_interrupted_downloads().await;
+        let _ = self.db.flush_wal().await;
     }
 
     /// Build a new DownloadRecord from options.
@@ -206,6 +251,7 @@ impl QueueManager {
 
     /// Resume a paused or failed download.
     pub async fn resume(&self, id: &str) -> Result<()> {
+        self.db.reset_retry_count(id).await?;
         self.db.update_status(id, "queued", None).await?;
         let _ = self.event_tx.send(QueueEvent::StatusChanged {
             id: id.to_string(),
@@ -245,8 +291,9 @@ impl QueueManager {
     /// Run the queue processing loop in the background.
     pub async fn run_queue_worker(self: Arc<Self>, cancel_token: CancellationToken) {
         info!("Download queue worker started");
+        let _ = self.recover_interrupted_downloads().await;
 
-        while !cancel_token.is_cancelled() {
+        while !cancel_token.is_cancelled() && !self.shutting_down.load(Ordering::SeqCst) {
             let max_c = *self.max_concurrent.lock().await;
             let current_active = self.active_tasks.lock().await.len();
 
@@ -297,8 +344,13 @@ impl QueueManager {
             resume: true,
         };
 
-        // Combine global rate limiter with per-task rate limiter
         let limiter = self.global_limiter.clone();
+        let per_task_limiter = if record.max_speed_bps > 0 {
+            Some(TokenBucketRateLimiter::new(record.max_speed_bps))
+        } else {
+            None
+        };
+        let proxy_url = self.proxy_url.lock().await.clone();
 
         let (prog_tx, mut prog_rx) = mpsc::channel::<DownloadProgress>(64);
         let id_for_prog = task_id.clone();
@@ -333,9 +385,15 @@ impl QueueManager {
                 prog_tx,
             ).await
         } else {
-            let downloader = Downloader::new(options, cancel_token.clone())
+            let mut downloader = Downloader::new(options, cancel_token.clone())
                 .with_rate_limiter(limiter);
-            downloader.start(prog_tx).await
+            if let Some(tl) = per_task_limiter {
+                downloader = downloader.with_task_rate_limiter(tl);
+            }
+            match downloader.with_proxy(proxy_url.as_deref()) {
+                Ok(configured) => configured.start(prog_tx).await,
+                Err(e) => Err(e),
+            }
         };
 
         let _ = prog_handle.await;
@@ -357,19 +415,35 @@ impl QueueManager {
                 info!("Queue download {} completed successfully", task_id);
             }
             Err(DownloadError::Cancelled) => {
-                let _ = self.db.update_status(&task_id, "paused", None).await;
+                let next_status = if self.shutting_down.load(Ordering::SeqCst) {
+                    "queued"
+                } else {
+                    "paused"
+                };
+                let _ = self.db.update_status(&task_id, next_status, None).await;
                 let _ = self.event_tx.send(QueueEvent::StatusChanged {
                     id: task_id.clone(),
-                    status: "paused".to_string(),
+                    status: next_status.to_string(),
                 }).await;
-                info!("Queue download {} paused", task_id);
+                info!("Queue download {} {}", task_id, next_status);
             }
             Err(e) => {
+                if self.shutting_down.load(Ordering::SeqCst) {
+                    let _ = self.db.update_status(&task_id, "queued", None).await;
+                    return;
+                }
                 let err_msg = e.to_string();
                 warn!("Queue download {} encountered error: {}", task_id, err_msg);
 
-                // Exponential backoff retry logic
-                if record.retry_count < record.max_retries {
+                let non_retryable = matches!(
+                    &e,
+                    DownloadError::InvalidUrl(_)
+                        | DownloadError::ChecksumMismatch { .. }
+                        | DownloadError::ServerFailed { status: 400 | 401 | 403 | 404 | 410 | 451, .. }
+                ) || err_msg.contains("Insufficient disk space");
+
+                // Exponential backoff retry logic for transient errors
+                if !non_retryable && record.retry_count < record.max_retries {
                     let next_retry = self.db.increment_retry(&task_id, &err_msg).await.unwrap_or(record.retry_count + 1);
                     let backoff_secs = (2u64.pow(next_retry.min(5))).min(30);
                     info!(
@@ -381,11 +455,13 @@ impl QueueManager {
                     let retry_id = task_id.clone();
                     tokio::spawn(async move {
                         sleep(Duration::from_secs(backoff_secs)).await;
-                        let _ = self_clone.db.update_status(&retry_id, "queued", None).await;
-                        let _ = self_clone.event_tx.send(QueueEvent::StatusChanged {
-                            id: retry_id,
-                            status: "queued".to_string(),
-                        }).await;
+                        if !self_clone.shutting_down.load(Ordering::SeqCst) {
+                            let _ = self_clone.db.update_status(&retry_id, "queued", None).await;
+                            let _ = self_clone.event_tx.send(QueueEvent::StatusChanged {
+                                id: retry_id,
+                                status: "queued".to_string(),
+                            }).await;
+                        }
                     });
                 } else {
                     let _ = self.db.update_status(&task_id, "failed", Some(&err_msg)).await;
@@ -393,7 +469,7 @@ impl QueueManager {
                         id: task_id.clone(),
                         error: err_msg,
                     }).await;
-                    error!("Download {} permanently failed after {} retries", task_id, record.max_retries);
+                    error!("Download {} failed: retries={}/{}", task_id, record.retry_count, record.max_retries);
                 }
             }
         }
