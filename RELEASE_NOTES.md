@@ -1,34 +1,21 @@
-# Cosmo Downloader v1.2.3
+# Cosmo Downloader v1.2.4
 
 A fast, reliable multi-segment download manager for **Windows 10 and Windows 11**, paired with redesigned browser extensions for Google Chrome, Microsoft Edge, Brave, Opera, and Mozilla Firefox.
 
 ---
 
-## What's New in v1.2.3
+## What's New in v1.2.4
 
-### Redesigned "New download" File Info Popup Dialog
-- **Modern Compact Card UI**: Completely updated the "Download File Info" popup dialog across both the native Windows desktop app (`crates/app/src/dialogs/add_download.rs`) and the standalone / dashboard HTML mockup (`Download_popup.html` and Section 4 of `Cosmo downloader NEWWW.html`).
-- **Branded Header**: Displays the official cosmic glowing emblem, `New download` title, and subtle top-right `✕` dismiss button.
-- **Enhanced Typography & Anti-Clipping**:
-  - Replaced unclipped raw text painter with auto-truncating layout blocks for both the filename and metadata line.
-  - Generous vertical separation ensures complex Unicode/UTF-8 filenames (e.g. Bengali script) and adaptive stream source tags never overlap or glitch.
-  - Dedicated $36 \times 36\text{ px}$ squircle badge with soft accent background housing the category vector icon.
-- **Two-Column Inline Controls**:
-  - **Category Selector**: Clean dropdown with perfect vertical text centering and a single clean native chevron.
-  - **Save to**: Inset path field paired with an intuitive vector folder button (`📁`) for directory picking.
-- **Preferences & Actions**:
-  - Smart remember folder checkbox: `Use this folder for [category] next time`.
-  - Right-aligned footer buttons: neutral outline `[ Cancel ]` button and high-contrast accent `[ 📥 Start download ]` CTA.
-
-### Dashboard Showcase Integration
-- Embedded **Section 4 · Download File Info popup** into `Cosmo downloader NEWWW.html`, completing the 4-part live showcase suite:
-  1. Main Desktop App
-  2. Browser Extension Popup
-  3. Video Download Button & Quality Menu
-  4. Download File Info Popup
-
-### Build & Version Hygiene
-- Bumped workspace version to `1.2.3` across `Cargo.toml`, Windows PE `.rc` resource files, Inno Setup installer, and extension manifests.
+### Popup UI Fixes & Layout Streamlining
+- **Anti-Clipping & Expanded Height**:
+  - Increased popup window viewport size to $560 \times 400\text{ px}$ (with minimum size $500 \times 360\text{ px}$ and resizability enabled).
+  - Adjusted dialog margins to ensure bottom action buttons (`Start download` and `Cancel`) are always 100% visible with plenty of breathing room, eliminating clipping across all Windows display DPI scales (100%, 125%, 150%).
+- **Official Cosmic Emblem in Header**:
+  - Replaced vector placeholder bars in the dialog header with the official circular cosmic emblem (featuring deep radial gradients and vector download arrow).
+- **Streamlined, Modern Layout**:
+  - Removed cluttering "Advanced options" and "Add a note" chips from the download popup to strictly align with the clean reference design in `Download_popup.html`.
+  - Replaced the large-radius checkbox with a crisp, modern square checkbox with high-contrast checkmark.
+  - Category selector and "Save to" folder picker stay aligned in a balanced two-column row.
 
 ---
 
@@ -36,19 +23,18 @@ A fast, reliable multi-segment download manager for **Windows 10 and Windows 11*
 
 | File | Description |
 | :--- | :--- |
-| `CosmoDownloader-Setup-v1.2.3.exe` | **Windows Installer (Recommended)** — Installs Cosmo Downloader (`v1.2.3`), desktop/start shortcuts, `yt-dlp` / `ffmpeg`, and registers browser native messaging hosts. Seamlessly upgrades existing installations. |
-| `CosmoDownloader.exe` | Standalone Windows desktop application binary (`v1.2.3`). |
-| `CosmoDownloader-Chrome-Edge-Brave-Opera-Extension-v1.2.3.zip` | **All-in-One** unified browser extension package for Google Chrome, Microsoft Edge, Brave, and Opera (`v1.2.3`). |
+| `CosmoDownloader-Setup-v1.2.4.exe` | **Windows Installer (Recommended)** — Installs Cosmo Downloader (`v1.2.4`), desktop/start shortcuts, `yt-dlp` / `ffmpeg`, and registers browser native messaging hosts. Seamlessly upgrades existing installations. |
+| `CosmoDownloader.exe` | Standalone Windows desktop application binary (`v1.2.4`). |
+| `CosmoDownloader-Chrome-Edge-Brave-Opera-Extension-v1.2.4.zip` | **All-in-One** unified browser extension package for Google Chrome, Microsoft Edge, Brave, and Opera (`v1.2.4`). |
 
 ---
 
 ## Quick Install (Windows)
 
-1. Download and run **`CosmoDownloader-Setup-v1.2.3.exe`**.
+1. Download and run **`CosmoDownloader-Setup-v1.2.4.exe`**.
 2. **Chrome / Microsoft Edge / Brave / Opera:**
-   - Extract **`CosmoDownloader-Chrome-Edge-Brave-Opera-Extension-v1.2.3.zip`**.
+   - Extract **`CosmoDownloader-Chrome-Edge-Brave-Opera-Extension-v1.2.4.zip`**.
    - Open your browser's extensions management page (`chrome://extensions`, `edge://extensions`, `brave://extensions`, `opera://extensions`).
-   - Enable **Developer mode**.
+   - Enable **Developer mode** (top-right toggle).
    - Click **Load unpacked** and select the extracted extension folder.
-3. **Mozilla Firefox:**
-   - Distributed via Mozilla Add-ons (AMO).
+3. Downloads clicked inside your browser or from video players will automatically open the redesigned Cosmo Downloader popup dialog.
