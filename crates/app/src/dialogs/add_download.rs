@@ -100,7 +100,7 @@ pub fn render_add_download_dialog(
 
     // 2. File Card Preview
     let card_w = ui.available_width();
-    let card_rect = ui.allocate_space(Vec2::new(card_w, 44.0)).1;
+    let card_rect = ui.allocate_space(Vec2::new(card_w, 48.0)).1;
 
     ui.painter().line_segment(
         [card_rect.left_top(), card_rect.right_top()],
@@ -115,19 +115,11 @@ pub fn render_add_download_dialog(
     let icon_rect = Rect::from_center_size(Pos2::new(card_rect.left() + 16.0, mid_y), Vec2::splat(18.0));
     icons::draw_category_symbol(ui.painter(), icon_rect, state.category, pal.muted);
 
-    let text_x = card_rect.left() + 38.0;
     let display_name = if state.filename.trim().is_empty() {
         "File will be resolved from link"
     } else {
         state.filename.as_str()
     };
-    ui.painter().text(
-        Pos2::new(text_x, mid_y - 10.0),
-        egui::Align2::LEFT_TOP,
-        display_name,
-        egui::FontId::proportional(13.0),
-        pal.text,
-    );
 
     let meta_text = if rustget_core::youtube::is_streaming_site(state.url) {
         format!("{}, Adaptive stream", state.category)
@@ -140,13 +132,32 @@ pub fn render_add_download_dialog(
     } else {
         format!("{}, Unknown size", state.category)
     };
-    ui.painter().text(
-        Pos2::new(text_x, mid_y + 4.0),
-        egui::Align2::LEFT_TOP,
-        meta_text,
-        egui::FontId::proportional(11.5),
-        pal.muted,
+
+    let text_rect = Rect::from_min_max(
+        Pos2::new(card_rect.left() + 38.0, card_rect.top() + 7.0),
+        Pos2::new(card_rect.right() - 8.0, card_rect.bottom() - 7.0),
     );
+
+    ui.allocate_new_ui(egui::UiBuilder::new().max_rect(text_rect), |ui| {
+        ui.spacing_mut().item_spacing.y = 2.0;
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(display_name)
+                    .size(13.0)
+                    .strong()
+                    .color(pal.text),
+            )
+            .truncate(),
+        );
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(meta_text)
+                    .size(11.5)
+                    .color(pal.muted),
+            )
+            .truncate(),
+        );
+    });
 
     ui.add_space(shapes::S1);
 
