@@ -60,10 +60,9 @@ All source code, commits, releases, and distribution assets belong exclusively t
 Always pass --repo Itsmahedi/Cosmo-Downloader explicitly to every gh command.
 Release notes should be comprehensive, clean, and professional.
 
-### 🛑 CRITICAL RELEASE ASSET RULE: NO FIREFOX EXTENSIONS ON GITHUB
-- **NEVER upload Firefox extension files (`.zip` or `.xpi`) to GitHub releases.**
-- Firefox extensions are distributed exclusively via Mozilla's official Add-ons directory ([addons.mozilla.org / AMO](https://addons.mozilla.org/)).
-- The only browser extension package uploaded to GitHub releases is the Chromium extension (`CosmoDownloader-Chrome-Extension-vX.Y.Z.zip`).
+### 🛑 CRITICAL RELEASE ASSET RULES:
+- **ALL-IN-ONE CHROMIUM EXTENSION ONLY**: Upload a single, unified extension package covering all Chromium browsers named `CosmoDownloader-Chrome-Edge-Brave-Opera-Extension-vX.Y.Z.zip`. Do NOT create separate one-by-one folders or separate zip files for each browser — package all four into this one single file.
+- **NEVER upload Firefox extension files (`.zip` or `.xpi`) to GitHub releases.** Firefox extensions are distributed exclusively via Mozilla's official Add-ons directory ([addons.mozilla.org / AMO](https://addons.mozilla.org/)).
 
 Example:
 ```bash
@@ -71,7 +70,7 @@ gh release create vX.Y.Z \
   --repo Itsmahedi/Cosmo-Downloader \
   --title "Cosmo Downloader vX.Y.Z" \
   --notes-file RELEASE_NOTES.md \
-  path/to/CosmoDownloader-Setup-vX.Y.Z.exe path/to/CosmoDownloader.exe path/to/CosmoDownloader-Chrome-Extension-vX.Y.Z.zip
+  path/to/CosmoDownloader-Setup-vX.Y.Z.exe path/to/CosmoDownloader.exe path/to/CosmoDownloader-Chrome-Edge-Brave-Opera-Extension-vX.Y.Z.zip
 ```
 
 6. Version Management
