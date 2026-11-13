@@ -5,6 +5,12 @@ All notable changes to Cosmo Downloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-11-13
+
+### Changed
+- **Browser Extension UI Overhaul:** Redesigned popup UI across Firefox, Chrome, Edge, Brave, and Opera to match the Cosmo Downloader desktop software design (Steel Slate `#8fa6c4` / `#44546a` palette, 340px card dimensions, horizontal connection status banner, 32px hero counter block, solid primary download button, and adaptive light/dark theme).
+- **Firefox AMO Manifest V3 Compatibility:** Configured `browser_specific_settings` with `gecko.id: rustget@downloader.addon`, `gecko.strict_min_version: 140.0`, `gecko_android.strict_min_version: 142.0`, and declared `data_collection_permissions: { required: ["none"] }`, achieving 0 errors and 0 warnings on addons.mozilla.org (AMO).
+
 ## [1.2.1] - 2026-11-13
 
 ### Fixed

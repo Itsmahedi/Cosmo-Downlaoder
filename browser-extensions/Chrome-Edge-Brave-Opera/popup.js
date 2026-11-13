@@ -5,7 +5,11 @@
 "use strict";
 
 const statusDot = document.getElementById("statusDot");
-const statusText = document.getElementById("statusText");
+const versionText = document.getElementById("versionText");
+const connBanner = document.getElementById("connBanner");
+const connText = document.getElementById("connText");
+const connIcon = document.getElementById("connIcon");
+const launchContainer = document.getElementById("launchContainer");
 const launchBtn = document.getElementById("launchBtn");
 const launchSpinner = document.getElementById("launchSpinner");
 const launchBtnText = document.getElementById("launchBtnText");
@@ -24,6 +28,14 @@ const filterSavedMsg = document.getElementById("filterSavedMsg");
 const runtime = typeof browser !== "undefined" ? browser : chrome;
 
 let isLaunching = false;
+
+// Display active manifest version in header
+try {
+  const manifest = (runtime.runtime && runtime.runtime.getManifest) ? runtime.runtime.getManifest() : null;
+  if (manifest && manifest.version && versionText) {
+    versionText.textContent = "v" + manifest.version;
+  }
+} catch (_) {}
 
 /**
  * Updates UI based on 3-state detection:
@@ -49,9 +61,9 @@ function updateStatus() {
     }
 
     if (response.appRunning) {
-      applyState("connected", "Connected");
+      applyState("connected", "Connected to Cosmo Downloader");
     } else if (response.hostInstalled) {
-      applyState("amber", "App closed");
+      applyState("amber", "App closed — click Launch Cosmo below");
     } else {
       applyState("disconnected", "Host bridge not detected");
     }
@@ -64,24 +76,38 @@ function updateStatus() {
 }
 
 function applyState(state, text) {
-  statusDot.className = "dot " + state;
-  if (statusText) statusText.textContent = text;
+  if (statusDot) {
+    statusDot.className = "dot " + (state === "connected" ? "" : state);
+  }
 
-  if (state === "connected") {
-    statusDot.title = "Connected to Cosmo Downloader";
-    if (launchBtn) launchBtn.style.display = "none";
-    if (statusError) statusError.style.display = "none";
-  } else if (state === "amber") {
-    statusDot.title = "Cosmo Downloader is closed — click Launch Cosmo to start";
-    if (launchBtn) {
-      launchBtn.style.display = "inline-flex";
-      launchBtn.disabled = false;
-      if (launchSpinner) launchSpinner.style.display = "none";
-      if (launchBtnText) launchBtnText.textContent = "Launch Cosmo";
+  if (connBanner && connText && connIcon) {
+    if (state === "connected") {
+      connBanner.className = "conn";
+      connText.textContent = text || "Connected to Cosmo Downloader";
+      connIcon.innerHTML = '<path d="M5 12.5l4.5 4.5L19 7.5"/>';
+      if (statusDot) statusDot.title = "Connected to Cosmo Downloader";
+      if (launchContainer) launchContainer.style.display = "none";
+      if (statusError) statusError.style.display = "none";
+    } else if (state === "amber") {
+      connBanner.className = "conn amber";
+      connText.textContent = text || "App closed — click Launch Cosmo below";
+      connIcon.innerHTML = '<circle cx="12" cy="12" r="9"/><path d="M12 7v5M12 16h.01"/>';
+      if (statusDot) statusDot.title = "Cosmo Downloader is closed — click Launch Cosmo to start";
+      if (launchContainer) {
+        launchContainer.style.display = "block";
+      }
+      if (launchBtn) {
+        launchBtn.disabled = false;
+        if (launchSpinner) launchSpinner.style.display = "none";
+        if (launchBtnText) launchBtnText.textContent = "Launch Cosmo";
+      }
+    } else {
+      connBanner.className = "conn disconnected";
+      connText.textContent = text || "Host bridge not detected";
+      connIcon.innerHTML = '<path d="M18 6L6 18M6 6l12 12"/>';
+      if (statusDot) statusDot.title = "Host bridge not registered";
+      if (launchContainer) launchContainer.style.display = "none";
     }
-  } else {
-    statusDot.title = "Host bridge not registered";
-    if (launchBtn) launchBtn.style.display = "none";
   }
 }
 
@@ -101,7 +127,7 @@ if (launchBtn) {
     runtime.runtime.sendMessage({ action: "launchApp" }, (res) => {
       isLaunching = false;
       if (res && res.success) {
-        applyState("connected", "Connected");
+        applyState("connected", "Connected to Cosmo Downloader");
       } else {
         const errMsg = res?.error || "Launch timed out. Start Cosmo Downloader manually.";
         if (statusError) {

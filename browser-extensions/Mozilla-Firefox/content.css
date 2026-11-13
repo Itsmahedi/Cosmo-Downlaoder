@@ -55,9 +55,9 @@
 }
 
 .cosmo-video-download-btn.sent {
-  background: #8fb4ff !important;
-  color: #0e1b36 !important;
-  border-color: #8fb4ff !important;
+  background: #8fa6c4 !important;
+  color: #0f1a2a !important;
+  border-color: #8fa6c4 !important;
 }
 
 .cosmo-download-icon,
@@ -136,8 +136,8 @@
 }
 
 .cosmo-quality-item:hover {
-  background: rgba(143, 180, 255, 0.12) !important;
-  color: #8fb4ff !important;
+  background: rgba(143, 166, 196, 0.16) !important;
+  color: #8fa6c4 !important;
 }
 
 .cosmo-quality-item .meta {
@@ -147,7 +147,7 @@
 }
 
 .cosmo-quality-item:hover .meta {
-  color: #8fb4ff !important;
+  color: #8fa6c4 !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

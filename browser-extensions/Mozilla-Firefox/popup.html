@@ -3,49 +3,68 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cosmo</title>
+  <title>Cosmo Downloader</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="popup">
+  <div class="win popup">
     <!-- Header -->
     <div class="ph">
-      <img class="logo" src="icons/icon-32.png" alt="Cosmo Downloader logo">
-      <span>Cosmo</span>
+      <img class="logo" src="icons/icon-48.png" alt="Cosmo Downloader logo">
+      <div>
+        <b>Cosmo Downloader</b>
+        <span class="meta" id="versionText">v1.10.1</span>
+      </div>
       <i class="dot" id="statusDot" title="Checking status..."></i>
-      <span id="statusText">Checking...</span>
     </div>
 
-    <!-- Toggle & Stats -->
+    <!-- Connection Banner -->
+    <div class="conn" id="connBanner">
+      <svg class="i" id="connIcon" style="width:14px;height:14px" viewBox="0 0 24 24">
+        <path d="M5 12.5l4.5 4.5L19 7.5"/>
+      </svg>
+      <span id="connText">Checking connection...</span>
+    </div>
+
+    <!-- Intercept Toggle -->
     <div class="toggle">
       <div>
-        <div class="toggle-title">Catch downloads automatically</div>
-        <div class="meta num"><span id="interceptedCount">0</span> caught this session</div>
+        <b>Intercept Downloads</b>
+        <span class="meta">Instant capture in browser</span>
       </div>
       <label class="sw">
-        <input type="checkbox" id="toggleIntercept" checked aria-label="Catch downloads automatically">
+        <input type="checkbox" id="toggleIntercept" checked aria-label="Intercept Downloads">
         <i></i>
       </label>
     </div>
 
-    <!-- Quick URL send -->
+    <!-- Intercepted Files Hero Counter -->
+    <div class="count">
+      <b class="num" id="interceptedCount">0</b>
+      <span class="meta">Intercepted files</span>
+    </div>
+
+    <!-- Send Link -->
     <div class="send">
-      <input class="field" id="urlInput" placeholder="https://..." aria-label="Link to download" spellcheck="false">
-      <button class="btn icon outline" id="addUrlBtn" type="button" aria-label="Download" title="Send to Cosmo Downloader">
+      <input class="field" id="urlInput" placeholder="Paste URL to download…" aria-label="URL to download" spellcheck="false">
+      <button class="btn primary icon" id="addUrlBtn" type="button" aria-label="Download" title="Send to Cosmo Downloader">
         <svg class="i" viewBox="0 0 24 24">
           <path d="M12 4v11M7 11l5 5 5-5M5 20h14"/>
         </svg>
       </button>
     </div>
 
+    <!-- Feedback / Errors -->
     <div id="urlFeedback" class="url-feedback" style="display: none;"></div>
     <div id="statusError" class="status-error" style="display: none;"></div>
 
     <!-- App Launcher if closed -->
-    <button id="launchBtn" class="btn outline" type="button" style="display: none; width: 100%; justify-content: center; font-size: var(--t-small); height: 28px;">
-      <span class="launch-spinner" id="launchSpinner"></span>
-      <span id="launchBtnText">Launch Cosmo</span>
-    </button>
+    <div id="launchContainer" style="padding: 0 var(--s4) var(--s3); display: none;">
+      <button id="launchBtn" class="btn outline" type="button" style="width: 100%; justify-content: center; font-size: var(--t-small); height: 32px;">
+        <span class="launch-spinner" id="launchSpinner"></span>
+        <span id="launchBtnText">Launch Cosmo</span>
+      </button>
+    </div>
 
     <!-- Filters & Site Exclusions -->
     <details class="filters-box" id="filtersBox">
@@ -63,6 +82,9 @@
         </div>
       </div>
     </details>
+
+    <!-- Footer -->
+    <div class="pfoot">© 2026 Mahedi</div>
   </div>
 
   <script src="popup.js"></script>

@@ -1,4 +1,4 @@
-# Cosmo Downloader v1.2.1
+# Cosmo Downloader v1.2.2
 
 A fast, multi-segment desktop download manager for **Windows 10 and Windows 11**, paired with browser extensions for Chrome, Microsoft Edge, Brave, Opera, and Mozilla Firefox.
 
@@ -21,13 +21,13 @@ A fast, multi-segment desktop download manager for **Windows 10 and Windows 11**
 
 ## Windows Installation & In-Place Upgrades
 
-1. Build or run **`CosmoDownloader-Setup-v1.2.1.exe`** (compiled from `installer/cosmodownloader.iss` via Inno Setup 6).
+1. Build or run **`CosmoDownloader-Setup-v1.2.2.exe`** (compiled from `installer/cosmodownloader.iss` via Inno Setup 6).
 2. Upgrading over a running installation:
    - Setup detects running `CosmoDownloader.exe`, `cosmodownloader-host.exe`, and `cosmodownloader-cli.exe`, sends `--quit` for a clean queue flush (with a 5s wait and `taskkill` fallback), installs cleanly, and automatically relaunches Cosmo Downloader if it was open before the upgrade.
    - User database, queue state, and settings in `%LOCALAPPDATA%\CosmoDownloader` are preserved automatically.
 3. Silent install / update:
    ```cmd
-   CosmoDownloader-Setup-v1.2.1.exe /VERYSILENT /NORESTART
+   CosmoDownloader-Setup-v1.2.2.exe /VERYSILENT /NORESTART
    ```
 
 ---
