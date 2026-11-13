@@ -24,6 +24,7 @@ pub enum SortColumn {
 #[derive(Default)]
 pub struct TableAction {
     pub request_delete_ids: Vec<String>,
+    pub add_download_clicked: bool,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -82,14 +83,15 @@ pub fn render_download_table(
 
     // Rows area (.rows)
     if rows.is_empty() {
-        ui.add_space(32.0);
-        ui.vertical_centered(|ui| {
-            ui.label(
-                egui::RichText::new("No downloads in this category")
-                    .size(14.0)
-                    .color(pal.muted),
-            );
-        });
+        if crate::components::empty_state::render_empty_state(
+            ui,
+            pal,
+            "No downloads yet",
+            "Paste a link or browser download to get started",
+            "Add URL",
+        ) {
+            table_action.add_download_clicked = true;
+        }
         return table_action;
     }
 

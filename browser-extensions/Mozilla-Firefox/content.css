@@ -1,5 +1,6 @@
 /* ==========================================================================
    Cosmo Downloader - Sleek In-Page Video Download Button & Menu
+   Surface 3 Reference Specification
    ========================================================================== */
 
 /* Floating Container on Video Player */
@@ -8,7 +9,7 @@
   top: 12px !important;
   right: 12px !important;
   z-index: 2147483647 !important;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-family: 'Geist', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
   pointer-events: auto !important;
   user-select: none !important;
   display: flex !important;
@@ -24,13 +25,13 @@
   box-sizing: border-box !important;
 }
 
-/* Main Download Button */
+/* Main Download Button: 28px high, 12px / 500, surface bg, 1px line border, radius 6 */
 .cosmo-video-download-btn {
   display: inline-flex !important;
   align-items: center !important;
-  gap: 8px !important;
-  height: 30px !important;
-  padding: 0 12px !important;
+  gap: 6px !important;
+  height: 28px !important;
+  padding: 0 8px !important;
   background: #22252a !important;
   color: #e6e8eb !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -39,7 +40,7 @@
   font-weight: 500 !important;
   cursor: pointer !important;
   pointer-events: auto !important;
-  opacity: 0.9 !important;
+  opacity: 0.92 !important;
   transition: background 160ms ease-out, border-color 160ms ease-out, opacity 160ms ease-out !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
   line-height: 1 !important;
@@ -60,21 +61,12 @@
   border-color: #8fa6c4 !important;
 }
 
-.cosmo-download-icon,
-.cosmo-logo-icon {
-  width: 15px !important;
-  height: 15px !important;
+.cosmo-btn-logo {
+  width: 16px !important;
+  height: 16px !important;
   flex-shrink: 0 !important;
-  fill: none !important;
-  stroke: currentColor !important;
-  stroke-width: 2 !important;
-  stroke-linecap: round !important;
-  stroke-linejoin: round !important;
-}
-
-.cosmo-video-download-btn.sent .cosmo-download-icon,
-.cosmo-video-download-btn.sent .cosmo-logo-icon {
-  color: #0e1b36 !important;
+  border-radius: 2px !important;
+  display: block !important;
 }
 
 .cosmo-btn-text {
@@ -83,15 +75,26 @@
   white-space: nowrap !important;
 }
 
-/* Quality Selection Menu */
+.cosmo-btn-chevron {
+  width: 14px !important;
+  height: 14px !important;
+  flex-shrink: 0 !important;
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-width: 1.6 !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+}
+
+/* Quality Selection Menu: 176px wide, surface bg, 1px line, radius 10, 4px padding, shadow 0 8px 24px rgba(0,0,0,.18) */
 .cosmo-quality-menu {
   display: none !important;
-  width: 232px !important;
+  width: 176px !important;
   background: #22252a !important;
   border: 1px solid rgba(255, 255, 255, 0.08) !important;
   border-radius: 10px !important;
   padding: 4px !important;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18) !important;
 }
 
 .cosmo-video-container.open .cosmo-quality-menu {
@@ -111,20 +114,39 @@
   }
 }
 
+/* Menu Header Row: logo 16px + label, 12px muted 500 */
+.cosmo-menu-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 6px 8px !important;
+  font-size: 12px !important;
+  color: #9097a1 !important;
+  font-weight: 500 !important;
+}
+
+.cosmo-menu-header img {
+  width: 16px !important;
+  height: 16px !important;
+  border-radius: 2px !important;
+  flex-shrink: 0 !important;
+}
+
 .cosmo-quality-menu hr {
   border: 0 !important;
   border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
-  margin: 4px 8px !important;
-  width: calc(100% - 16px) !important;
+  margin: 4px 6px !important;
+  width: calc(100% - 12px) !important;
 }
 
+/* Quality Options: 30px high, 13px: label left, file size right */
 .cosmo-quality-item {
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
   width: 100% !important;
-  height: 32px !important;
-  padding: 0 12px !important;
+  height: 30px !important;
+  padding: 0 8px !important;
   border: 0 !important;
   border-radius: 6px !important;
   background: transparent !important;
@@ -135,7 +157,8 @@
   transition: background 160ms ease-out, color 160ms ease-out !important;
 }
 
-.cosmo-quality-item:hover {
+.cosmo-quality-item:hover,
+.cosmo-quality-item[aria-selected="true"] {
   background: rgba(143, 166, 196, 0.16) !important;
   color: #8fa6c4 !important;
 }
@@ -146,8 +169,17 @@
   font-variant-numeric: tabular-nums !important;
 }
 
-.cosmo-quality-item:hover .meta {
+.cosmo-quality-item:hover .meta,
+.cosmo-quality-item[aria-selected="true"] .meta {
   color: #8fa6c4 !important;
+}
+
+/* Menu Footer: 12px muted, centered */
+.cosmo-menu-footer {
+  padding: 6px 8px 4px !important;
+  text-align: center !important;
+  font-size: 12px !important;
+  color: #9097a1 !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -26,26 +26,48 @@ use crate::theme::{self, shapes};
 pub const ICON_RGBA: &[u8] = include_bytes!("icon_32.rgba");
 pub const APP_TITLE: &str = "Cosmo Downloader";
 
+pub fn compute_status_counts(downloads: &[DownloadRecord]) -> nav_rail::StatusCounts {
+    let mut counts = nav_rail::StatusCounts {
+        all: downloads.len(),
+        downloading: 0,
+        completed: 0,
+        paused: 0,
+    };
+    for d in downloads {
+        if d.status == "downloading" || d.status == "queued" {
+            counts.downloading += 1;
+        } else if d.status == "completed" {
+            counts.completed += 1;
+        } else if d.status == "paused" || d.status == "failed" {
+            counts.paused += 1;
+        }
+    }
+    counts
+}
+
 pub fn compute_category_counts(downloads: &[DownloadRecord]) -> CategoryCounts {
     let mut counts = CategoryCounts {
         all: downloads.len(),
-        programs: 0,
         video: 0,
         music: 0,
         documents: 0,
-        archives: 0,
+        compressed: 0,
+        programs: 0,
+        other: 0,
     };
     for d in downloads {
-        if CategoryFilter::Programs.matches(&d.category) {
-            counts.programs += 1;
-        } else if CategoryFilter::Video.matches(&d.category) {
+        if CategoryFilter::Video.matches(&d.category) {
             counts.video += 1;
         } else if CategoryFilter::Music.matches(&d.category) {
             counts.music += 1;
         } else if CategoryFilter::Documents.matches(&d.category) {
             counts.documents += 1;
         } else if CategoryFilter::Compressed.matches(&d.category) {
-            counts.archives += 1;
+            counts.compressed += 1;
+        } else if CategoryFilter::Programs.matches(&d.category) {
+            counts.programs += 1;
+        } else {
+            counts.other += 1;
         }
     }
     counts
@@ -56,6 +78,7 @@ pub struct CosmoDownloaderApp {
     pub downloads: Vec<DownloadRecord>,
     pub active_progress: HashMap<String, DownloadProgress>,
     pub ema_speeds: HashMap<String, f64>,
+    pub selected_status: nav_rail::StatusFilter,
     pub selected_category: CategoryFilter,
     pub selected_ids: HashSet<String>,
     pub search_query: String,
@@ -208,9 +231,9 @@ impl CosmoDownloaderApp {
                 })
                 .with_download_wake_callback(move || {
                     ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
-                    ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 400.0)));
-                    ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(Vec2::new(500.0, 360.0)));
-                    ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Title("Download File Info".to_string()));
+                    ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(540.0, 315.0)));
+                    ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(Vec2::new(500.0, 280.0)));
+                    ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Title("New download".to_string()));
                     ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Resizable(true));
                     ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop));
                     ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
@@ -419,6 +442,7 @@ impl CosmoDownloaderApp {
             downloads: initial_downloads,
             active_progress: HashMap::new(),
             ema_speeds: HashMap::new(),
+            selected_status: nav_rail::StatusFilter::All,
             selected_category: initial_category,
             selected_ids: HashSet::new(),
             search_query: String::new(),
@@ -463,7 +487,7 @@ impl CosmoDownloaderApp {
             add_is_probing: false,
             add_error_message: None,
             add_description: String::new(),
-            add_remember_category: false,
+            add_remember_category: true,
             show_notes_expanded: false,
             show_advanced_add: false,
             size_probe_rx: None,
@@ -610,7 +634,7 @@ impl CosmoDownloaderApp {
         user_agent: Option<String>,
         num_segments: Option<usize>,
     ) {
-        self.add_url = url.trim().to_string();
+        self.add_url = rustget_core::youtube::normalize_streaming_url(url);
         self.add_cookies = cookies;
         self.add_referer = referer;
         self.add_user_agent = user_agent;
@@ -620,7 +644,7 @@ impl CosmoDownloaderApp {
         self.add_description.clear();
         self.add_error_message = None;
         self.add_file_size = None;
-        self.add_remember_category = false;
+        self.add_remember_category = true;
         self.show_advanced_add = false;
 
         if let Some(f) = filename {
@@ -1210,9 +1234,9 @@ impl eframe::App for CosmoDownloaderApp {
             self.active_popup_task_id = None;
             self.show_add_dialog = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
-            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 400.0)));
-            ctx.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(Vec2::new(500.0, 360.0)));
-            ctx.send_viewport_cmd(egui::ViewportCommand::Title("Download File Info".to_string()));
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(540.0, 315.0)));
+            ctx.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(Vec2::new(500.0, 280.0)));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Title("New download".to_string()));
             ctx.send_viewport_cmd(egui::ViewportCommand::Resizable(true));
             ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop));
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
@@ -1235,9 +1259,9 @@ impl eframe::App for CosmoDownloaderApp {
                 self.active_popup_task_id = None;
                 self.show_add_dialog = true;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 400.0)));
-                ctx.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(Vec2::new(500.0, 360.0)));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Title("Download File Info".to_string()));
+                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(540.0, 315.0)));
+                ctx.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(Vec2::new(500.0, 280.0)));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Title("New download".to_string()));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Resizable(true));
                 ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
@@ -1475,12 +1499,19 @@ impl eframe::App for CosmoDownloaderApp {
         self.handle_borderless_resize(ctx);
 
         let prev_cat = self.selected_category;
+        let status_counts = compute_status_counts(&self.downloads);
         let cat_counts = compute_category_counts(&self.downloads);
 
         let needle = self.search_query.trim().to_ascii_lowercase();
         let filtered_ids: Vec<String> = self
             .downloads
             .iter()
+            .filter(|d| match self.selected_status {
+                nav_rail::StatusFilter::All => true,
+                nav_rail::StatusFilter::Downloading => d.status == "downloading" || d.status == "queued",
+                nav_rail::StatusFilter::Completed => d.status == "completed",
+                nav_rail::StatusFilter::Paused => d.status == "paused" || d.status == "failed",
+            })
             .filter(|d| self.selected_category.matches(&d.category))
             .filter(|d| {
                 needle.is_empty()
@@ -1641,10 +1672,18 @@ impl eframe::App for CosmoDownloaderApp {
                     self.show_add_dialog = true;
                 }
                 if tb.resume_clicked {
-                    self.resume_selected();
+                    if self.selected_ids.is_empty() {
+                        self.resume_all();
+                    } else {
+                        self.resume_selected();
+                    }
                 }
                 if tb.pause_clicked {
-                    self.pause_selected();
+                    if self.selected_ids.is_empty() {
+                        self.pause_all();
+                    } else {
+                        self.pause_selected();
+                    }
                 }
                 if tb.delete_clicked {
                     self.request_delete_selected();
@@ -1672,7 +1711,7 @@ impl eframe::App for CosmoDownloaderApp {
         let pal_refresh = theme::palette(self.is_dark);
         egui::SidePanel::left("cosmo_sidebar")
             .resizable(false)
-            .exact_width(200.0)
+            .exact_width(208.0)
             .frame(
                 egui::Frame::none()
                     .fill(pal_refresh.bg)
@@ -1685,7 +1724,14 @@ impl eframe::App for CosmoDownloaderApp {
                     [egui::pos2(r.right() + 12.0, r.top() - 12.0), egui::pos2(r.right() + 12.0, r.bottom() + 12.0)],
                     Stroke::new(1.0_f32, pal_refresh.line),
                 );
-                nav_rail::render_category_sidebar(ui, pal_refresh, &mut self.selected_category, &cat_counts);
+                nav_rail::render_category_sidebar(
+                    ui,
+                    pal_refresh,
+                    &mut self.selected_status,
+                    &status_counts,
+                    &mut self.selected_category,
+                    &cat_counts,
+                );
             });
 
         if self.selected_category != prev_cat {
@@ -1711,6 +1757,12 @@ impl eframe::App for CosmoDownloaderApp {
                 let mut filtered_downloads: Vec<&DownloadRecord> = self
                     .downloads
                     .iter()
+                    .filter(|d| match self.selected_status {
+                        nav_rail::StatusFilter::All => true,
+                        nav_rail::StatusFilter::Downloading => d.status == "downloading" || d.status == "queued",
+                        nav_rail::StatusFilter::Completed => d.status == "completed",
+                        nav_rail::StatusFilter::Paused => d.status == "paused" || d.status == "failed",
+                    })
                     .filter(|d| self.selected_category.matches(&d.category))
                     .filter(|d| {
                         needle.is_empty()
@@ -1774,6 +1826,10 @@ impl eframe::App for CosmoDownloaderApp {
                     &mut self.sort_col,
                     &mut self.sort_asc,
                 );
+                if tbl_action.add_download_clicked {
+                    self.add_error_message = None;
+                    self.show_add_dialog = true;
+                }
                 if !tbl_action.request_delete_ids.is_empty() {
                     self.pending_delete_ids = tbl_action.request_delete_ids;
                     self.delete_also_files = false;
@@ -1841,7 +1897,7 @@ impl eframe::App for CosmoDownloaderApp {
 
         // Add Download Modal Dialog
         if self.show_add_dialog && !self.is_popup_mode {
-            egui::Window::new("New Download")
+            egui::Window::new("New download")
                 .collapsible(false)
                 .resizable(false)
                 .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
@@ -1849,11 +1905,11 @@ impl eframe::App for CosmoDownloaderApp {
                     egui::Frame::none()
                         .fill(pal_refresh.surface)
                         .stroke(Stroke::new(1.0_f32, pal_refresh.line))
-                        .inner_margin(Margin::same(20.0))
+                        .inner_margin(Margin::symmetric(24.0, 20.0))
                         .rounding(shapes::R),
                 )
                 .show(ctx, |ui| {
-                    ui.set_width(520.0);
+                    ui.set_width(492.0);
                     let mut dlg_state = AddDialogState {
                         url: &mut self.add_url,
                         filename: &mut self.add_filename,

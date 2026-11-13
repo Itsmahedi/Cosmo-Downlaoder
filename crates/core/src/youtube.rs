@@ -23,6 +23,38 @@ pub fn is_streaming_site(url: &str) -> bool {
         || lower.contains("reddit.com/")
 }
 
+/// Normalizes streaming URLs: if the URL has a "v" query parameter, keeps only the single
+/// video by dropping playlist parameters (list, start_radio, index).
+/// Real playlist URLs (e.g. /playlist?list=...) without a "v" parameter are kept intact.
+pub fn normalize_streaming_url(raw_url: &str) -> String {
+    let trimmed = raw_url.trim();
+    if let Ok(mut parsed) = url::Url::parse(trimmed) {
+        let has_v = parsed.query_pairs().any(|(k, _)| k == "v");
+        if has_v {
+            let filtered: Vec<(String, String)> = parsed
+                .query_pairs()
+                .filter(|(k, _)| k != "list" && k != "start_radio" && k != "index")
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect();
+            parsed.set_query(None);
+            if !filtered.is_empty() {
+                let mut query = String::new();
+                for (i, (k, v)) in filtered.iter().enumerate() {
+                    if i > 0 {
+                        query.push('&');
+                    }
+                    query.push_str(k);
+                    query.push('=');
+                    query.push_str(v);
+                }
+                parsed.set_query(Some(&query));
+            }
+            return parsed.to_string();
+        }
+    }
+    trimmed.to_string()
+}
+
 /// Locate yt-dlp binary on the system.
 pub fn find_ytdlp_binary() -> Option<PathBuf> {
     // 1. Next to current executable
@@ -393,5 +425,19 @@ mod tests {
     fn test_find_ffmpeg_binary() {
         let bin = find_ffmpeg_binary();
         assert!(bin.is_some());
+    }
+
+    #[test]
+    fn test_normalize_streaming_url() {
+        let url_with_list = "https://www.youtube.com/watch?v=qpS7tc1KVwI&list=RDqpS7tc1KVwI&start_radio=1";
+        assert_eq!(
+            normalize_streaming_url(url_with_list),
+            "https://www.youtube.com/watch?v=qpS7tc1KVwI"
+        );
+        let playlist_only = "https://www.youtube.com/playlist?list=PL123456789";
+        assert_eq!(
+            normalize_streaming_url(playlist_only),
+            "https://www.youtube.com/playlist?list=PL123456789"
+        );
     }
 }

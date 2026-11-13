@@ -1,5 +1,5 @@
 use eframe::egui::{self, Vec2};
-use crate::theme::{colors, shapes};
+use crate::theme::{shapes, ThemeColors};
 use crate::icons;
 
 // ============================================================================
@@ -8,6 +8,7 @@ use crate::icons;
 
 pub fn render_empty_state(
     ui: &mut egui::Ui,
+    pal: &ThemeColors,
     title: &str,
     subtitle: &str,
     action_label: &str,
@@ -21,17 +22,17 @@ pub fn render_empty_state(
     }
 
     ui.vertical_centered(|ui| {
-        // Subtle wireframe circle + icon
-        let (circle_rect, _) = ui.allocate_exact_size(Vec2::splat(48.0), egui::Sense::hover());
-        ui.painter().circle_filled(circle_rect.center(), 24.0, colors::RAISE);
-        icons::draw_download(ui.painter(), circle_rect.shrink(14.0), colors::MUTED);
+        // 36px icon tile / icon
+        let (circle_rect, _) = ui.allocate_exact_size(Vec2::splat(36.0), egui::Sense::hover());
+        ui.painter().circle_filled(circle_rect.center(), 18.0, pal.raise);
+        icons::draw_download(ui.painter(), circle_rect.shrink(9.0), pal.muted);
 
         ui.add_space(shapes::S3);
 
         ui.label(
             egui::RichText::new(title)
-                .size(15.0)
-                .color(colors::TEXT)
+                .size(16.0)
+                .color(pal.text)
                 .strong(),
         );
 
@@ -40,7 +41,7 @@ pub fn render_empty_state(
             ui.label(
                 egui::RichText::new(subtitle)
                     .size(12.0)
-                    .color(colors::MUTED),
+                    .color(pal.muted),
             );
         }
 
@@ -48,10 +49,10 @@ pub fn render_empty_state(
 
         let btn = egui::Button::new(
             egui::RichText::new(action_label)
-                .size(13.0)
-                .color(colors::ON_ACCENT),
+                .size(13.5)
+                .color(pal.on_accent),
         )
-        .fill(colors::ACCENT)
+        .fill(pal.accent)
         .min_size(Vec2::new(140.0, shapes::CONTROL_HEIGHT))
         .rounding(shapes::R_SM);
 

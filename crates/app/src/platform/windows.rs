@@ -191,6 +191,7 @@ pub fn get_process_window() -> *mut std::ffi::c_void {
         }
 
         let titles = [
+            "New download\0",
             "Download File Info\0",
             "Downloading - Cosmo Downloader\0",
             "Download complete\0",

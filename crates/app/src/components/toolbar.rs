@@ -43,17 +43,17 @@ pub fn render_toolbar(
 
     inner.add_space(12.0);
 
-    if toolbar_btn(&mut inner, pal, "tb_add", "Add", true, icons::draw_add) {
+    if toolbar_btn(&mut inner, pal, "tb_add", "Add URL", true, icons::draw_add) {
         action.add_clicked = true;
     }
 
     toolbar_sep(&mut inner, pal);
 
-    if toolbar_btn(&mut inner, pal, "tb_resume", "Resume", has_selection, icons::draw_play) {
-        action.resume_clicked = true;
-    }
-    if toolbar_btn(&mut inner, pal, "tb_pause", "Pause", has_selection, icons::draw_pause) {
+    if toolbar_btn(&mut inner, pal, "tb_pause", "Pause All", true, icons::draw_pause) {
         action.pause_clicked = true;
+    }
+    if toolbar_btn(&mut inner, pal, "tb_resume", "Resume All", true, icons::draw_play) {
+        action.resume_clicked = true;
     }
     if toolbar_btn(&mut inner, pal, "tb_del", "Delete", has_selection, icons::draw_trash) {
         action.delete_clicked = true;
@@ -61,7 +61,7 @@ pub fn render_toolbar(
 
     toolbar_sep(&mut inner, pal);
 
-    if toolbar_btn(&mut inner, pal, "tb_opts", "Options", true, |p, r, c| icons::draw_settings(p, r, c, pal.surface)) {
+    if toolbar_btn(&mut inner, pal, "tb_opts", "Settings", true, |p, r, c| icons::draw_settings(p, r, c, pal.surface)) {
         action.options_clicked = true;
     }
 
@@ -108,7 +108,7 @@ fn toolbar_btn(
     draw_icon: impl FnOnce(&Painter, Rect, Color32),
 ) -> bool {
     let sense = if enabled { egui::Sense::click() } else { egui::Sense::hover() };
-    let (rect, resp) = ui.allocate_exact_size(Vec2::new(66.0, 44.0), sense);
+    let (rect, resp) = ui.allocate_exact_size(Vec2::new(68.0, 44.0), sense);
 
     if enabled && resp.hovered() {
         ui.painter().rect_filled(rect, shapes::R_SM, pal.raise);

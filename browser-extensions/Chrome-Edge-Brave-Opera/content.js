@@ -12,13 +12,12 @@
 const runtime = typeof browser !== "undefined" ? browser : (typeof chrome !== "undefined" ? chrome : null);
 
 const QUALITIES = [
-  { label: "1080p", meta: "Full HD (MP4)", format: "1080p", audioOnly: false },
-  { label: "720p", meta: "HD (MP4)", format: "720p", audioOnly: false },
-  { label: "480p", meta: "SD (MP4)", format: "480p", audioOnly: false },
-  { label: "360p", meta: "Low (MP4)", format: "360p", audioOnly: false },
+  { label: "1080p", meta: "148 MB", format: "1080p", audioOnly: false },
+  { label: "720p", meta: "82 MB", format: "720p", audioOnly: false },
+  { label: "480p", meta: "41 MB", format: "480p", audioOnly: false },
+  { label: "360p", meta: "24 MB", format: "360p", audioOnly: false },
   { divider: true },
-  { label: "Audio only", meta: "MP3 Audio", format: "audio", audioOnly: true },
-  { label: "Best available", meta: "Auto", format: "best", audioOnly: false }
+  { label: "Audio only", meta: "9 MB", format: "audio", audioOnly: true }
 ];
 
 let siteExcluded = false;
@@ -183,37 +182,54 @@ function attachCosmoDownloadButton(videoEl) {
   const container = document.createElement("div");
   container.className = "cosmo-video-container";
 
-  // Create Download Button (Flat 30px, quiet, hand-crafted)
+  // Create Download Button: 28px high, 12px / 500, surface bg, 1px line border, radius 6: logo 16px + "Download" + chevron 14px
   const btn = document.createElement("button");
   btn.className = "cosmo-video-download-btn";
   btn.type = "button";
   btn.setAttribute("aria-label", "Download Video");
 
-  const logoSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  logoSvg.setAttribute("class", "cosmo-download-icon cosmo-logo-icon");
-  logoSvg.setAttribute("viewBox", "0 0 24 24");
-  logoSvg.setAttribute("width", "15");
-  logoSvg.setAttribute("height", "15");
-  logoSvg.setAttribute("fill", "none");
-  logoSvg.setAttribute("stroke", "currentColor");
-  logoSvg.setAttribute("stroke-width", "2");
-  logoSvg.setAttribute("stroke-linecap", "round");
-  logoSvg.setAttribute("stroke-linejoin", "round");
-  logoSvg.setAttribute("aria-hidden", "true");
-  logoSvg.innerHTML = '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>';
+  const logoImg = document.createElement("img");
+  logoImg.className = "cosmo-btn-logo";
+  logoImg.alt = "Cosmo";
+  logoImg.src = runtime && runtime.runtime && runtime.runtime.getURL ? runtime.runtime.getURL("icons/icon-16.png") : "icons/icon-16.png";
 
   const btnText = document.createElement("span");
   btnText.className = "cosmo-btn-text";
   btnText.textContent = "Download";
 
-  btn.appendChild(logoSvg);
-  btn.appendChild(btnText);
+  const chevSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  chevSvg.setAttribute("class", "cosmo-btn-chevron");
+  chevSvg.setAttribute("viewBox", "0 0 24 24");
+  chevSvg.setAttribute("width", "14");
+  chevSvg.setAttribute("height", "14");
+  chevSvg.setAttribute("fill", "none");
+  chevSvg.setAttribute("stroke", "currentColor");
+  chevSvg.setAttribute("stroke-width", "1.6");
+  chevSvg.setAttribute("stroke-linecap", "round");
+  chevSvg.setAttribute("stroke-linejoin", "round");
+  chevSvg.innerHTML = '<path d="M7 10l5 5 5-5"/>';
 
-  // Create Quality Dropdown Menu (Clean, quiet list, no badges/footers)
+  btn.appendChild(logoImg);
+  btn.appendChild(btnText);
+  btn.appendChild(chevSvg);
+
+  // Create Quality Dropdown Menu: 176px wide, surface bg, 1px line, radius 10, 4px padding, shadow 0 8px 24px rgba(0,0,0,.18)
   const menu = document.createElement("div");
   menu.className = "cosmo-quality-menu";
   menu.setAttribute("role", "listbox");
-  menu.setAttribute("aria-label", "Quality");
+  menu.setAttribute("aria-label", "Select quality");
+
+  // Menu Header Row: logo 16px + label, 12px muted 500
+  const menuHeader = document.createElement("div");
+  menuHeader.className = "cosmo-menu-header";
+  const mLogo = document.createElement("img");
+  mLogo.src = logoImg.src;
+  mLogo.alt = "Cosmo";
+  const mLabel = document.createElement("span");
+  mLabel.textContent = "Cosmo Downloader";
+  menuHeader.appendChild(mLogo);
+  menuHeader.appendChild(mLabel);
+  menu.appendChild(menuHeader);
 
   QUALITIES.forEach((q) => {
     if (q.divider) {
@@ -240,6 +256,12 @@ function attachCosmoDownloadButton(videoEl) {
     item.appendChild(metaSpan);
     menu.appendChild(item);
   });
+
+  // Menu Footer: 12px muted, centered
+  const menuFooter = document.createElement("div");
+  menuFooter.className = "cosmo-menu-footer";
+  menuFooter.textContent = "© 2026 Mahedi";
+  menu.appendChild(menuFooter);
 
   // Prevent parent player events from interfering or closing the menu
   ["pointerdown", "mousedown", "mouseup", "click"].forEach((evtName) => {
@@ -331,6 +353,65 @@ function attachCosmoDownloadButton(videoEl) {
   });
 }
 
+function sanitizeFilename(name) {
+  const map = {
+    '<': '＜',
+    '>': '＞',
+    ':': '：',
+    '"': '＂',
+    '/': '⧸',
+    '\\': '⧹',
+    '|': '｜',
+    '?': '？',
+    '*': '＊'
+  };
+  let res = '';
+  let prevSpace = false;
+  for (const c of name) {
+    if (c.charCodeAt(0) < 32) {
+      if (!prevSpace) {
+        res += ' ';
+        prevSpace = true;
+      }
+      continue;
+    }
+    if (map[c]) {
+      res += map[c];
+      prevSpace = false;
+    } else if (/\s/.test(c)) {
+      if (!prevSpace) {
+        res += ' ';
+        prevSpace = true;
+      }
+    } else {
+      res += c;
+      prevSpace = false;
+    }
+  }
+  res = res.trim().replace(/\.+$/, '').trim();
+  if (!res) return 'download.bin';
+
+  const stem = res.split('.')[0].toUpperCase();
+  const reserved = ['CON', 'PRN', 'AUX', 'NUL', 'COM0', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT0', 'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'];
+  if (reserved.includes(stem)) {
+    res = '_' + res;
+  }
+  return res;
+}
+
+function normalizeStreamingUrl(rawUrl) {
+  try {
+    const u = new URL(rawUrl.trim());
+    if (u.searchParams.has('v')) {
+      u.searchParams.delete('list');
+      u.searchParams.delete('start_radio');
+      u.searchParams.delete('index');
+      return u.toString();
+    }
+  } catch (_) {}
+  return rawUrl.trim();
+}
+
 function triggerDownload(videoEl, format) {
   let videoUrl = videoEl.src || videoEl.currentSrc || "";
   if (!videoUrl) {
@@ -338,12 +419,13 @@ function triggerDownload(videoEl, format) {
     if (srcEl) videoUrl = srcEl.src || "";
   }
 
-  const pageUrl = window.location.href;
+  const rawPageUrl = window.location.href;
+  const pageUrl = normalizeStreamingUrl(rawPageUrl);
   const isStreaming = pageUrl.includes("youtube.com") || pageUrl.includes("youtu.be") || pageUrl.includes("vimeo.com");
   const urlToSend = (isStreaming || !videoUrl || videoUrl.startsWith("blob:")) ? pageUrl : videoUrl;
   const pageTitle = document.title ? document.title.replace(" - YouTube", "").trim() : "video";
   const ext = format === "audio" ? ".mp3" : ".mp4";
-  const safeFilename = pageTitle.replace(/[^a-zA-Z0-9_\-. ]/g, "_") + ext;
+  const safeFilename = sanitizeFilename(pageTitle) + ext;
 
   try {
     runtime.runtime.sendMessage({

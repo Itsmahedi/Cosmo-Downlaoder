@@ -167,10 +167,10 @@ button{cursor:pointer}
 .dlb{display:flex;flex-direction:column;gap:var(--s4);padding:var(--s5)}
 .fs{display:flex;align-items:center;gap:var(--s3);padding-bottom:var(--s3);border-bottom:1px solid var(--line)}
 .fi{width:36px;height:36px;flex:none;display:grid;place-items:center;border-radius:var(--r-sm);background:var(--accent-soft);color:var(--accent)}
-.fs .tx{min-width:0;flex:1;overflow:hidden}
+.fs .tx{min-width:0}
 .fs b{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fs b.bad{color:var(--danger)}
-.fs .meta{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fs .meta{display:block}
 .lb{display:block;font-size:var(--t-small);color:var(--muted);margin:0 0 var(--s1)}
 .sv{display:grid;grid-template-columns:140px minmax(0,1fr);gap:var(--s3)}
 .sv>div{min-width:0}
@@ -179,7 +179,20 @@ button{cursor:pointer}
 .rm{display:flex;align-items:center;gap:var(--s2);font-size:var(--t-small);color:var(--muted)}
 .rm input{accent-color:var(--accent);margin:0}
 .dlf{display:flex;justify-content:flex-end;gap:var(--s2);padding:var(--s3) var(--s5);border-top:1px solid var(--line)}
-select.field{cursor:pointer;line-height:calc(var(--h) - 2px)}
+select.field{
+  height:var(--h);
+  border:1px solid var(--line);
+  border-radius:var(--r-sm);
+  background-color:var(--bg);
+  padding:0 var(--s3);
+  font:inherit;
+  font-size:var(--t-body);
+  color:var(--text);
+  width:100%;
+  cursor:pointer;
+  box-sizing:border-box;
+}
+select.field:focus{border-color:var(--accent);outline:none}
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -427,15 +440,38 @@ function sGood(t,vid,room){
 function vidId(u){try{return new URL(u).searchParams.get("v")||"video"}catch(e){return"video"}}
 function hostOf(u){try{return new URL(u).hostname.replace(/^www\./,"")}catch(e){return"link"}}
 function baseDir(c){return pick||mem[c]||"C:\\Users\\steam\\"+DIRS[c]+"\\"}
+function alignPathEnd(){
+  var el=$("dlPath");
+  if(el && document.activeElement!==el){
+    el.scrollLeft=el.scrollWidth;
+  }
+}
+function normLink(link){
+  try {
+    var u = new URL(link.trim());
+    if (u.searchParams.has("v")) {
+      u.searchParams.delete("list");
+      u.searchParams.delete("start_radio");
+      u.searchParams.delete("index");
+      return u.toString();
+    }
+  } catch(e) {}
+  return link.trim();
+}
 function dRefresh(){
   if(!$("dlCat"))return;
-  var c=$("dlCat").value,t=$("dlTitle").value,link=$("dlLink").value,dir=baseDir(c),ext=EXT[c];
+  var c=$("dlCat").value,t=$("dlTitle").value,rawLink=$("dlLink").value,dir=baseDir(c),ext=EXT[c];
+  var link=normLink(rawLink);
+  if(link!==rawLink)$("dlLink").value=link;
   var path=dir+sGood(t,vidId(link),250-dir.length-ext.length-1)+"."+ext;
   $("dlPath").value=path;
+  $("dlPath").title=path;
   $("dlName").textContent=path.split("\\").pop();
   $("dlMeta").textContent=c+" · "+hostOf(link);
   $("dlIco").setAttribute("href","#"+(ICON[c]||"other"));
   $("dlRemT").textContent="Use this folder for "+c.toLowerCase()+" next time";
+  if($("dlGo"))$("dlGo").disabled=!link.trim();
+  setTimeout(alignPathEnd, 0);
 }
 function startDl(){
   var c=$("dlCat").value,path=$("dlPath").value,dir=path.slice(0,path.lastIndexOf("\\")+1);
@@ -450,6 +486,7 @@ function cancelDl(){pick=null;dRefresh()}
 if($("dlLink"))$("dlLink").addEventListener("input",dRefresh);
 if($("dlCat"))$("dlCat").addEventListener("change",function(){pick=null;dRefresh()});
 if($("dlBrowse"))$("dlBrowse").onclick=function(){var i=ALT.indexOf(baseDir($("dlCat").value));pick=ALT[(i+1)%ALT.length];dRefresh()};
+if($("dlPath"))$("dlPath").addEventListener("blur", alignPathEnd);
 if($("dlGo"))$("dlGo").onclick=startDl;
 if($("dlCancel"))$("dlCancel").onclick=cancelDl;
 if($("dlX"))$("dlX").onclick=cancelDl;

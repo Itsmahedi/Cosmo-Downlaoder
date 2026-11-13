@@ -158,12 +158,25 @@ if (toggleIntercept) {
   });
 }
 
+function normalizeUrl(url) {
+  try {
+    const u = new URL(url.trim());
+    if (u.searchParams.has("v")) {
+      u.searchParams.delete("list");
+      u.searchParams.delete("start_radio");
+      u.searchParams.delete("index");
+      return u.toString();
+    }
+  } catch (_) {}
+  return url.trim();
+}
+
 /**
  * Add URL with strict HTTP/HTTPS validation
  */
 function submitUrl() {
-  const urlStr = urlInput.value.trim();
-  if (!urlStr) {
+  const rawUrl = urlInput.value.trim();
+  if (!rawUrl) {
     if (urlFeedback) {
       urlFeedback.textContent = "Please enter a URL";
       urlFeedback.className = "url-feedback error";
@@ -171,6 +184,8 @@ function submitUrl() {
     }
     return;
   }
+
+  const urlStr = normalizeUrl(rawUrl);
 
   try {
     const parsedUrl = new URL(urlStr);

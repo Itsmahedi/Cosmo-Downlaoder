@@ -380,15 +380,16 @@ fn parse_content_disposition(header: &str) -> Option<String> {
     None
 }
 
-/// Returns true if `name` (before any extension) matches a Windows reserved DOS device name.
+/// Returns true if `stem` (before any extension) matches a Windows reserved DOS device name.
 fn is_windows_reserved_name(stem: &str) -> bool {
-    let upper = stem.to_ascii_uppercase();
+    let upper = stem.trim().to_ascii_uppercase();
     matches!(
         upper.as_str(),
         "CON"
             | "PRN"
             | "AUX"
             | "NUL"
+            | "COM0"
             | "COM1"
             | "COM2"
             | "COM3"
@@ -398,6 +399,7 @@ fn is_windows_reserved_name(stem: &str) -> bool {
             | "COM7"
             | "COM8"
             | "COM9"
+            | "LPT0"
             | "LPT1"
             | "LPT2"
             | "LPT3"
@@ -410,28 +412,57 @@ fn is_windows_reserved_name(stem: &str) -> bool {
     )
 }
 
-/// Removes illegal Windows filename characters, control chars, reserved device names, and overlong names.
+/// Replaces illegal Windows characters (< > : " / \ | ? *) with look-alikes (＜ ＞ ： ＂ ⧸ ⧹ ｜ ？ ＊),
+/// preserves Unicode letters/digits and [ ] ( ) , -, collapses repeated spaces, trims trailing dots/spaces,
+/// prefixes Windows reserved names with '_', and cuts length so full path stays under 250 characters.
 pub fn sanitize_filename(name: &str) -> String {
-    let forbidden = ['/', '\\', ':', '*', '?', '"', '<', '>', '|', '\0'];
-    let cleaned: String = name
-        .chars()
-        .map(|c| {
-            if forbidden.contains(&c) || c.is_control() {
-                '_'
-            } else {
-                c
-            }
-        })
-        .collect();
+    let mut mapped = String::with_capacity(name.len());
+    let mut prev_space = false;
 
-    let trimmed = cleaned
+    for c in name.chars() {
+        if c.is_control() {
+            if !prev_space {
+                mapped.push(' ');
+                prev_space = true;
+            }
+            continue;
+        }
+
+        let replacement = match c {
+            '<' => Some('＜'), // U+FF1C
+            '>' => Some('＞'), // U+FF1E
+            ':' => Some('：'), // U+FF1A
+            '"' => Some('＂'), // U+FF02
+            '/' => Some('⧸'), // U+29F8
+            '\\' => Some('⧹'), // U+29F9
+            '|' => Some('｜'), // U+FF5C
+            '?' => Some('？'), // U+FF1F
+            '*' => Some('＊'), // U+FF0A
+            _ => None,
+        };
+
+        if let Some(rep) = replacement {
+            mapped.push(rep);
+            prev_space = false;
+        } else if c.is_whitespace() {
+            if !prev_space {
+                mapped.push(' ');
+                prev_space = true;
+            }
+        } else {
+            mapped.push(c);
+            prev_space = false;
+        }
+    }
+
+    let trimmed = mapped
         .trim_matches(|c: char| c.is_whitespace() || c == '.')
         .trim();
     if trimmed.is_empty() {
         return "download.bin".to_string();
     }
 
-    // Protect Windows reserved device names (e.g. CON, NUL.txt, COM1.log)
+    // Protect Windows reserved device names (e.g. CON, NUL, COM1.log, etc.)
     let stem = trimmed.split('.').next().unwrap_or(trimmed);
     let safe = if is_windows_reserved_name(stem) {
         format!("_{}", trimmed)
@@ -439,7 +470,7 @@ pub fn sanitize_filename(name: &str) -> String {
         trimmed.to_string()
     };
 
-    // Enforce safe component length (< 180 chars) while preserving file extension
+    // Enforce safe filename length (< 180 chars) to ensure full path stays well under 250 chars
     if safe.chars().count() <= 180 {
         return safe;
     }
@@ -486,7 +517,17 @@ mod tests {
     #[test]
     fn test_sanitize_filename() {
         assert_eq!(sanitize_filename("valid_name.zip"), "valid_name.zip");
-        assert_eq!(sanitize_filename("bad/name:with*chars?.txt"), "bad_name_with_chars_.txt");
+        assert_eq!(sanitize_filename("bad/name:with*chars?.txt"), "bad⧸name：with＊chars？.txt");
+        assert_eq!(
+            sanitize_filename("[2] Famous Alfaaz Video (Full) - William Gamborg | Surtaal Music Academy"),
+            "[2] Famous Alfaaz Video (Full) - William Gamborg ｜ Surtaal Music Academy"
+        );
+        assert_eq!(
+            sanitize_filename("আমার সোনার বাংলা - পর্ব ১"),
+            "আমার সোনার বাংলা - পর্ব ১"
+        );
+        assert_eq!(sanitize_filename("NUL.mp4"), "_NUL.mp4");
+        assert_eq!(sanitize_filename("NUL"), "_NUL");
         assert_eq!(sanitize_filename(".."), "download.bin");
         assert_eq!(sanitize_filename(""), "download.bin");
     }

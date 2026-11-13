@@ -38,7 +38,7 @@ pub fn render_add_download_dialog(
     ui: &mut egui::Ui,
     pal: &ThemeColors,
     state: &mut AddDialogState<'_>,
-    logo_tex: Option<&egui::TextureHandle>,
+    _logo_tex: Option<&egui::TextureHandle>,
 ) -> AddDialogOutcome {
     let mut outcome = AddDialogOutcome {
         start_now: false,
@@ -49,46 +49,9 @@ pub fn render_add_download_dialog(
         category_changed: false,
     };
 
-    ui.spacing_mut().item_spacing.y = shapes::S2;
+    ui.spacing_mut().item_spacing.y = shapes::S4;
 
-    // 0. Header (Logo + "New download" + Close button)
-    ui.horizontal(|ui| {
-        let (rect, _response) = ui.allocate_exact_size(Vec2::splat(18.0), egui::Sense::hover());
-        if let Some(tex) = logo_tex {
-            ui.painter().image(
-                tex.id(),
-                rect,
-                Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                Color32::WHITE,
-            );
-        } else {
-            icons::draw_logo(ui.painter(), rect, pal.accent);
-        }
-        ui.label(
-            egui::RichText::new("New download")
-                .size(15.0)
-                .strong()
-                .color(pal.text),
-        );
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let (btn_rect, btn_resp) = ui.allocate_exact_size(Vec2::splat(20.0), egui::Sense::click());
-            if btn_resp.hovered() {
-                ui.painter().rect_filled(btn_rect, shapes::R_SM, pal.line);
-            }
-            icons::draw_close(
-                ui.painter(),
-                Rect::from_center_size(btn_rect.center(), Vec2::splat(12.0)),
-                if btn_resp.hovered() { pal.text } else { pal.muted },
-            );
-            if btn_resp.clicked() {
-                outcome.cancel = true;
-            }
-        });
-    });
-
-    ui.add_space(shapes::S1);
-
-    // 1. Link Field
+    // 1. Link Field (Title bar "New download" serves as the sole header)
     ui.label(egui::RichText::new("Link").size(12.0).color(pal.muted));
     let url_edit = egui::TextEdit::singleline(state.url)
         .hint_text("https://example.com/file.zip")
@@ -98,6 +61,10 @@ pub fn render_add_download_dialog(
 
     if ui.add(url_edit).changed() {
         outcome.url_changed = true;
+        let normalized = rustget_core::youtube::normalize_streaming_url(state.url);
+        if normalized != *state.url {
+            *state.url = normalized;
+        }
         if let Ok(parsed) = url::Url::parse(state.url.trim()) {
             let name = rustget_core::probe::extract_filename(&reqwest::header::HeaderMap::new(), &parsed);
             *state.filename = rustget_core::probe::sanitize_filename(&name);
@@ -190,57 +157,67 @@ pub fn render_add_download_dialog(
     ui.add_space(shapes::S2);
 
     // 3. Category & Save to on the SAME ROW (matches Image 1 & Download_popup.html .sv)
-    ui.horizontal(|ui| {
-        let total_w = ui.available_width();
-        let cat_w = 140.0_f32.min(total_w * 0.35);
-        let gap = shapes::S3;
-        let save_w = (total_w - cat_w - gap).max(120.0);
+    let total_w = ui.available_width();
+    let cat_w = 140.0_f32;
+    let col_gap = 12.0_f32;
+    let save_w = (total_w - cat_w - col_gap).max(60.0);
 
-        // Column 1: Category
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = col_gap;
+
+        // Column 1: Category (fixed width ~140px, 34px height)
         ui.allocate_ui_with_layout(
-            Vec2::new(cat_w, shapes::CONTROL_HEIGHT + 26.0),
+            Vec2::new(cat_w, shapes::CONTROL_HEIGHT + 22.0),
             egui::Layout::top_down(egui::Align::LEFT),
             |ui| {
                 ui.label(egui::RichText::new("Category").size(12.0).color(pal.muted));
-                egui::ComboBox::from_id_salt("cat_select_clean")
-                    .selected_text(&*state.category)
-                    .width(cat_w - 6.0)
-                    .show_ui(ui, |ui| {
-                        for cat in ["Video", "Music", "Documents", "Compressed", "Programs", "General"] {
-                            let is_sel = state.category.as_str() == cat;
-                            if ui.selectable_label(is_sel, cat).clicked() {
-                                *state.category = cat.to_string();
-                                if let Some(c) = Category::from_name(cat) {
-                                    *state.save_dir = c.default_dir().to_string_lossy().to_string();
+                ui.scope(|ui| {
+                    ui.spacing_mut().interact_size.y = shapes::CONTROL_HEIGHT;
+                    ui.spacing_mut().button_padding = egui::vec2(10.0, 7.0);
+                    egui::ComboBox::from_id_salt("cat_select_clean")
+                        .selected_text(&*state.category)
+                        .width(cat_w - 6.0)
+                        .show_ui(ui, |ui| {
+                            for cat in ["Video", "Music", "Documents", "Compressed", "Programs", "General"] {
+                                let is_sel = state.category.as_str() == cat;
+                                if ui.selectable_label(is_sel, cat).clicked() {
+                                    *state.category = cat.to_string();
+                                    if let Some(c) = Category::from_name(cat) {
+                                        *state.save_dir = c.default_dir().to_string_lossy().to_string();
+                                    }
+                                    outcome.category_changed = true;
                                 }
-                                outcome.category_changed = true;
                             }
-                        }
-                    });
+                        });
+                });
             },
         );
 
-        ui.add_space(gap);
-
-        // Column 2: Save to
+        // Column 2: Save to (takes the rest, folder button flex: none 34px fixed)
         ui.allocate_ui_with_layout(
-            Vec2::new(save_w, shapes::CONTROL_HEIGHT + 26.0),
+            Vec2::new(save_w, shapes::CONTROL_HEIGHT + 22.0),
             egui::Layout::top_down(egui::Align::LEFT),
             |ui| {
                 ui.label(egui::RichText::new("Save to").size(12.0).color(pal.muted));
                 ui.horizontal(|ui| {
-                    let browse_w = 34.0;
-                    let input_w = (ui.available_width() - browse_w - shapes::S2).max(60.0);
+                    let browse_w = shapes::CONTROL_HEIGHT; // fixed 34px size
+                    let inner_gap = 8.0_f32;
+                    ui.spacing_mut().item_spacing.x = inner_gap;
+                    let input_w = (save_w - browse_w - inner_gap).max(40.0);
+
                     let mut full_target = PathBuf::from(&*state.save_dir);
                     full_target.push(&*state.filename);
                     let mut path_display = full_target.to_string_lossy().to_string();
+                    let path_tooltip = path_display.clone();
 
                     let path_edit = egui::TextEdit::singleline(&mut path_display)
                         .desired_width(input_w)
                         .min_size(Vec2::new(input_w, shapes::CONTROL_HEIGHT))
                         .margin(Margin::symmetric(10.0, 7.0));
 
-                    if ui.add(path_edit).changed() {
+                    let path_resp = ui.add(path_edit).on_hover_text(path_tooltip);
+
+                    if path_resp.changed() {
                         let p = Path::new(&path_display);
                         if let Some(parent) = p.parent() {
                             *state.save_dir = parent.to_string_lossy().to_string();
@@ -250,9 +227,9 @@ pub fn render_add_download_dialog(
                         }
                     }
 
-                    // Folder icon button (draw_folder)
+                    // Folder icon button (draw_folder) - fixed 34px size
                     let (btn_rect, btn_resp) = ui.allocate_exact_size(
-                        Vec2::new(browse_w, shapes::CONTROL_HEIGHT),
+                        Vec2::splat(browse_w),
                         egui::Sense::click(),
                     );
                     let btn_bg = if btn_resp.hovered() { pal.raise } else { Color32::TRANSPARENT };
@@ -296,10 +273,10 @@ pub fn render_add_download_dialog(
         }
         let bg = if *state.remember_category { pal.accent } else { pal.bg };
         let border = if *state.remember_category { pal.accent } else { pal.line };
-        ui.painter().rect(rect, eframe::egui::Rounding::same(3.0), bg, Stroke::new(1.2_f32, border));
+        ui.painter().rect(rect, eframe::egui::Rounding::same(3.0), bg, Stroke::new(1.0_f32, border));
         if *state.remember_category {
-            let p1 = Pos2::new(rect.left() + 4.0, rect.center().y);
-            let p2 = Pos2::new(rect.left() + 6.5, rect.bottom() - 4.0);
+            let p1 = Pos2::new(rect.left() + 3.5, rect.center().y);
+            let p2 = Pos2::new(rect.left() + 6.0, rect.bottom() - 4.0);
             let p3 = Pos2::new(rect.right() - 3.5, rect.top() + 4.5);
             ui.painter().line_segment([p1, p2], Stroke::new(1.8_f32, pal.on_accent));
             ui.painter().line_segment([p2, p3], Stroke::new(1.8_f32, pal.on_accent));
@@ -324,7 +301,7 @@ pub fn render_add_download_dialog(
         );
     }
 
-    ui.add_space(shapes::S3);
+    ui.add_space(shapes::S2);
 
     // Border line above action buttons (matching .dlf border-top: 1px solid var(--line))
     let sep_w = ui.available_width();
@@ -336,25 +313,38 @@ pub fn render_add_download_dialog(
 
     ui.add_space(shapes::S2);
 
+    let is_empty_link = state.url.trim().is_empty();
+
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
         // Start download (primary)
         let (btn_rect, btn_resp) = ui.allocate_exact_size(
             Vec2::new(138.0, shapes::CONTROL_HEIGHT),
-            egui::Sense::click(),
+            if is_empty_link { egui::Sense::hover() } else { egui::Sense::click() },
         );
-        let bg = if btn_resp.hovered() { pal.accent.gamma_multiply(1.08) } else { pal.accent };
+        let bg = if is_empty_link {
+            pal.line
+        } else if btn_resp.hovered() {
+            pal.accent.gamma_multiply(1.08)
+        } else {
+            pal.accent
+        };
+        let text_color = if is_empty_link {
+            pal.muted
+        } else {
+            pal.on_accent
+        };
         ui.painter().rect_filled(btn_rect, shapes::R_SM, bg);
         let icon_rect = Rect::from_center_size(Pos2::new(btn_rect.left() + 18.0, btn_rect.center().y), Vec2::splat(14.0));
-        icons::draw_download(ui.painter(), icon_rect, pal.on_accent);
+        icons::draw_download(ui.painter(), icon_rect, text_color);
         ui.painter().text(
             Pos2::new(btn_rect.left() + 32.0, btn_rect.center().y),
             egui::Align2::LEFT_CENTER,
             "Start download",
             egui::FontId::proportional(13.0),
-            pal.on_accent,
+            text_color,
         );
 
-        if btn_resp.clicked() {
+        if !is_empty_link && btn_resp.clicked() {
             outcome.start_now = true;
         }
 
@@ -371,6 +361,14 @@ pub fn render_add_download_dialog(
 
         if ui.add(cancel_btn).clicked() {
             outcome.cancel = true;
+        }
+
+        // Keyboard shortcuts: Esc = Cancel, Enter = Start download
+        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+            outcome.cancel = true;
+        }
+        if !is_empty_link && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+            outcome.start_now = true;
         }
     });
 

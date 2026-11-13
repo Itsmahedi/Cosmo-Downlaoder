@@ -55,7 +55,6 @@ button{cursor:pointer}
 .btn.icon{width:var(--h);padding:0;justify-content:center}
 .field{height:var(--h);width:100%;padding:0 var(--s3);border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);outline:none;transition:border-color var(--ease)}
 .field:focus{border-color:var(--accent)}
-select.field{cursor:pointer;line-height:calc(var(--h) - 2px)}
 .badge{font-size:11px;line-height:1;padding:4px 8px;border-radius:var(--r-sm);background:var(--accent-soft);color:var(--accent);font-weight:500;white-space:nowrap}
 
 
@@ -74,10 +73,10 @@ select.field{cursor:pointer;line-height:calc(var(--h) - 2px)}
 .dlb{display:flex;flex-direction:column;gap:var(--s4);padding:var(--s5)}
 .fs{display:flex;align-items:center;gap:var(--s3);padding-bottom:var(--s3);border-bottom:1px solid var(--line)}
 .fi{width:36px;height:36px;flex:none;display:grid;place-items:center;border-radius:var(--r-sm);background:var(--accent-soft);color:var(--accent)}
-.fs .tx{min-width:0;flex:1;overflow:hidden}
+.fs .tx{min-width:0}
 .fs b{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fs b.bad{color:var(--danger)}
-.fs .meta{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fs .meta{display:block}
 .lb{display:block;font-size:var(--t-small);color:var(--muted);margin:0 0 var(--s1)}
 .sv{display:grid;grid-template-columns:140px minmax(0,1fr);gap:var(--s3)}
 .sv>div{min-width:0}
