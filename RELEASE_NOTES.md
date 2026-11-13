@@ -32,7 +32,6 @@ A fast, reliable multi-segment download manager for **Windows 10 and Windows 11*
 | `CosmoDownloader-Setup-v1.2.2.exe` | **Windows Installer (Recommended)** — Installs Cosmo Downloader (`v1.2.2`), shortcuts, `yt-dlp` / `ffmpeg`, and registers browser native messaging hosts. Seamlessly upgrades running versions. |
 | `CosmoDownloader.exe` | Standalone Windows desktop application binary (`v1.2.2`). |
 | `CosmoDownloader-Chrome-Extension-v1.2.2.zip` | Browser extension package for Google Chrome, Microsoft Edge, Brave, and Opera (`v1.2.2`). |
-| `CosmoDownloader-Firefox-Extension-v1.2.2.xpi` | Browser extension package for Mozilla Firefox (`v1.2.2`). |
 
 ---
 
@@ -43,4 +42,4 @@ A fast, reliable multi-segment download manager for **Windows 10 and Windows 11*
    - Extract `CosmoDownloader-Chrome-Extension-v1.2.2.zip`.
    - Go to `chrome://extensions` (or `edge://extensions` / `brave://extensions`), enable **Developer mode**, and select **Load unpacked**.
 3. **Mozilla Firefox:**
-   - Install `CosmoDownloader-Firefox-Extension-v1.2.2.xpi` via `about:addons` or load temporarily via `about:debugging#/runtime/this-firefox`.
+   - Available via Mozilla Add-ons (AMO).

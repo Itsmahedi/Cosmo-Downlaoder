@@ -58,15 +58,21 @@ When writing or modifying code in this repository, keep in mind:
 The sole official repository for Cosmo Downloader is Itsmahedi/Cosmo-Downloader.
 All source code, commits, releases, and distribution assets belong exclusively to Itsmahedi/Cosmo-Downloader.
 Always pass --repo Itsmahedi/Cosmo-Downloader explicitly to every gh command.
-Upload the updated Windows .exe and the updated browser extension packages (.zip / .xpi) with each release.
 Release notes should be comprehensive, clean, and professional.
-Example:
 
+### 🛑 CRITICAL RELEASE ASSET RULE: NO FIREFOX EXTENSIONS ON GITHUB
+- **NEVER upload Firefox extension files (`.zip` or `.xpi`) to GitHub releases.**
+- Firefox extensions are distributed exclusively via Mozilla's official Add-ons directory ([addons.mozilla.org / AMO](https://addons.mozilla.org/)).
+- The only browser extension package uploaded to GitHub releases is the Chromium extension (`CosmoDownloader-Chrome-Extension-vX.Y.Z.zip`).
+
+Example:
+```bash
 gh release create vX.Y.Z \
   --repo Itsmahedi/Cosmo-Downloader \
   --title "Cosmo Downloader vX.Y.Z" \
   --notes-file RELEASE_NOTES.md \
-  path/to/CosmoDownloader-Setup-vX.Y.exe path/to/CosmoDownloader.exe path/to/extension.zip path/to/extension.xpi
+  path/to/CosmoDownloader-Setup-vX.Y.Z.exe path/to/CosmoDownloader.exe path/to/CosmoDownloader-Chrome-Extension-vX.Y.Z.zip
+```
 
 6. Version Management
 Update the version with every release.
