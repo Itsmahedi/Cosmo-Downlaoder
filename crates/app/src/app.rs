@@ -1209,7 +1209,7 @@ impl eframe::App for CosmoDownloaderApp {
             self.active_popup_task_id = None;
             self.show_add_dialog = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
-            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 310.0)));
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 330.0)));
             ctx.send_viewport_cmd(egui::ViewportCommand::Title("Download File Info".to_string()));
             ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop));
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
@@ -1232,7 +1232,7 @@ impl eframe::App for CosmoDownloaderApp {
                 self.active_popup_task_id = None;
                 self.show_add_dialog = true;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 310.0)));
+                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 330.0)));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Title("Download File Info".to_string()));
                 ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
@@ -1848,7 +1848,7 @@ impl eframe::App for CosmoDownloaderApp {
                         .rounding(shapes::R),
                 )
                 .show(ctx, |ui| {
-                    ui.set_width(440.0);
+                    ui.set_width(520.0);
                     let mut dlg_state = AddDialogState {
                         url: &mut self.add_url,
                         filename: &mut self.add_filename,

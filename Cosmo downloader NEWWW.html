@@ -161,6 +161,26 @@ button{cursor:pointer}
 .menu button[aria-selected="true"]{color:var(--accent)}
 .menu hr{border:0;border-top:1px solid var(--line);margin:var(--s1) var(--s2)}
 .mf{padding:var(--s2) var(--s3);text-align:center;font-size:var(--t-small);color:var(--muted)}
+
+/* ---------- Download File Info panel ---------- */
+.dw{width:540px;max-width:100%}
+.dlb{display:flex;flex-direction:column;gap:var(--s4);padding:var(--s5)}
+.fs{display:flex;align-items:center;gap:var(--s3);padding-bottom:var(--s3);border-bottom:1px solid var(--line)}
+.fi{width:36px;height:36px;flex:none;display:grid;place-items:center;border-radius:var(--r-sm);background:var(--accent-soft);color:var(--accent)}
+.fs .tx{min-width:0;flex:1;overflow:hidden}
+.fs b{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fs b.bad{color:var(--danger)}
+.fs .meta{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb{display:block;font-size:var(--t-small);color:var(--muted);margin:0 0 var(--s1)}
+.sv{display:grid;grid-template-columns:140px minmax(0,1fr);gap:var(--s3)}
+.sv>div{min-width:0}
+.pr{display:flex;gap:var(--s2)}
+.pr .field,#dlLink{min-width:0;text-overflow:ellipsis}
+.rm{display:flex;align-items:center;gap:var(--s2);font-size:var(--t-small);color:var(--muted)}
+.rm input{accent-color:var(--accent);margin:0}
+.dlf{display:flex;justify-content:flex-end;gap:var(--s2);padding:var(--s3) var(--s5);border-top:1px solid var(--line)}
+select.field{cursor:pointer;line-height:calc(var(--h) - 2px)}
+
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -175,6 +195,7 @@ button{cursor:pointer}
   <symbol id="zip" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="5" rx="1.5"/><path d="M5.5 9v10.5h13V9M10 13h4"/></symbol>
   <symbol id="app" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M8 10l3 2.5L8 15M13 15h3.5"/></symbol>
   <symbol id="other" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/></symbol>
+  <symbol id="folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
   <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
   <symbol id="play" viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z"/></symbol>
   <symbol id="pause" viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></symbol>
@@ -265,6 +286,24 @@ button{cursor:pointer}
             </div>
           </div>
         </div>
+      </div>
+    </section>
+
+    <section class="stage">
+      <h2>4 · Download File Info popup</h2>
+      <input type="hidden" id="dlTitle" value="আমার সোনার বাংলা - পর্ব ১">
+      <div class="win dw" id="dw">
+        <div class="title"><img data-logo alt=""><b>New download</b><div class="wc"><button type="button" class="x" id="dlX" aria-label="Close"><svg class="i"><use href="#close"/></svg></button></div></div>
+        <div class="dlb">
+          <div><label class="lb" for="dlLink">Link</label><input class="field" id="dlLink" type="url" spellcheck="false" placeholder="Paste a link" value="https://www.youtube.com/watch?v=RlPNh_PBZb4"></div>
+          <div class="fs"><div class="fi"><svg class="i"><use id="dlIco" href="#video"/></svg></div><div class="tx"><b id="dlName"></b><span class="meta" id="dlMeta"></span></div></div>
+          <div class="sv">
+            <div><label class="lb" for="dlCat">Category</label><select class="field" id="dlCat"><option>Video</option><option>Music</option><option>Documents</option><option>Compressed</option><option>Programs</option><option>Other</option></select></div>
+            <div><label class="lb" for="dlPath">Save to</label><div class="pr"><input class="field" id="dlPath"><button class="btn outline icon" type="button" id="dlBrowse" aria-label="Change folder" title="Change folder"><svg class="i"><use href="#folder"/></svg></button></div></div>
+          </div>
+          <label class="rm"><input type="checkbox" id="dlRem" checked><span id="dlRemT"></span></label>
+        </div>
+        <div class="dlf"><button class="btn outline" type="button" id="dlCancel">Cancel</button><button class="btn primary" type="button" id="dlGo"><svg class="i"><use href="#down"/></svg>Start download</button></div>
       </div>
     </section>
   </div>
@@ -374,6 +413,47 @@ vm.addEventListener("click",function(e){
   setTimeout(function(){$("vbt").textContent="Download"},1600);
 });
 $("vb").onclick=function(){vm.hidden=!vm.hidden;this.setAttribute("aria-expanded",String(!vm.hidden))};
+
+/* Section 4 · Download File Info popup */
+var DIRS={Video:"Videos",Music:"Music",Documents:"Documents",Compressed:"Compressed",Programs:"Programs",Other:"Downloads"},EXT={Video:"mp4",Music:"mp3",Documents:"pdf",Compressed:"zip",Programs:"exe",Other:"bin"},mem={},pick=null,ALT=["C:\\Users\\steam\\Videos\\","C:\\Users\\steam\\Downloads\\","C:\\Users\\steam\\Desktop\\","D:\\Media\\"];
+var SUB={"<":"＜",">":"＞",":":"：",'"':"＂","/":"⧸","\\":"⧹","|":"｜","?":"？","*":"＊"};
+function sGood(t,vid,room){
+  var n=t.normalize("NFC").replace(/[\u0000-\u001F\u007F]/g,"").replace(/[<>:"\/\\|?*]/g,function(c){return SUB[c]}).replace(/\s+/g," ").trim();
+  n=Array.from(n).slice(0,Math.max(20,room)).join("").replace(/[. ]+$/g,"");
+  if(!/[\p{L}\p{N}]/u.test(n))n=vid;
+  if(/^(CON|PRN|AUX|NUL|COM[0-9\u00B9\u00B2\u00B3]|LPT[0-9\u00B9\u00B2\u00B3])(\..*)?$/i.test(n))n="_"+n;
+  return n;
+}
+function vidId(u){try{return new URL(u).searchParams.get("v")||"video"}catch(e){return"video"}}
+function hostOf(u){try{return new URL(u).hostname.replace(/^www\./,"")}catch(e){return"link"}}
+function baseDir(c){return pick||mem[c]||"C:\\Users\\steam\\"+DIRS[c]+"\\"}
+function dRefresh(){
+  if(!$("dlCat"))return;
+  var c=$("dlCat").value,t=$("dlTitle").value,link=$("dlLink").value,dir=baseDir(c),ext=EXT[c];
+  var path=dir+sGood(t,vidId(link),250-dir.length-ext.length-1)+"."+ext;
+  $("dlPath").value=path;
+  $("dlName").textContent=path.split("\\").pop();
+  $("dlMeta").textContent=c+" · "+hostOf(link);
+  $("dlIco").setAttribute("href","#"+(ICON[c]||"other"));
+  $("dlRemT").textContent="Use this folder for "+c.toLowerCase()+" next time";
+}
+function startDl(){
+  var c=$("dlCat").value,path=$("dlPath").value,dir=path.slice(0,path.lastIndexOf("\\")+1);
+  var remember=$("dlRem").checked;
+  if(remember)mem[c]=dir;else delete mem[c];
+  var fname=path.split("\\").pop();
+  add(fname,c);
+  caught++;
+  pick=null;dRefresh();
+}
+function cancelDl(){pick=null;dRefresh()}
+if($("dlLink"))$("dlLink").addEventListener("input",dRefresh);
+if($("dlCat"))$("dlCat").addEventListener("change",function(){pick=null;dRefresh()});
+if($("dlBrowse"))$("dlBrowse").onclick=function(){var i=ALT.indexOf(baseDir($("dlCat").value));pick=ALT[(i+1)%ALT.length];dRefresh()};
+if($("dlGo"))$("dlGo").onclick=startDl;
+if($("dlCancel"))$("dlCancel").onclick=cancelDl;
+if($("dlX"))$("dlX").onclick=cancelDl;
+dRefresh();
 
 /* theme: same data-theme logic as the reference file */
 function isDark(){var r=document.documentElement,t=r.getAttribute("data-theme");return t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches)}

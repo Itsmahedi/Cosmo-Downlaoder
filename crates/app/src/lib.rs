@@ -87,7 +87,9 @@ pub fn run() -> eframe::Result<()> {
             1,
             c"CosmoDownloader_v1_0_SingleInstance_Mutex".as_ptr().cast(),
         );
-        if platform::windows::GetLastError() == 183 {
+        let last_err = platform::windows::GetLastError();
+        platform::log_daemon(&format!("Mutex check: last_error={}", last_err));
+        if last_err == 183 {
             if let Some(ref file_path) = cli_popup_file {
                 if let Ok(content) = std::fs::read_to_string(file_path) {
                     let req = format!(
@@ -192,9 +194,15 @@ pub fn run() -> eframe::Result<()> {
         ..Default::default()
     };
 
-    eframe::run_native(
+    let res = eframe::run_native(
         "Cosmo Downloader",
         native_options,
         Box::new(|cc| Ok(Box::new(CosmoDownloaderApp::new(cc)))),
-    )
+    );
+    if let Err(ref e) = res {
+        platform::log_daemon(&format!("eframe::run_native error: {:?}", e));
+    } else {
+        platform::log_daemon("eframe::run_native exited cleanly");
+    }
+    res
 }
