@@ -33,7 +33,6 @@ A fast, reliable multi-segment download manager for **Windows 10 and Windows 11*
 | `CosmoDownloader.exe` | Standalone Windows desktop application binary (`v1.2.2`). |
 | `CosmoDownloader-Chrome-Extension-v1.2.2.zip` | Browser extension package for Google Chrome, Microsoft Edge, Brave, and Opera (`v1.2.2`). |
 | `CosmoDownloader-Firefox-Extension-v1.2.2.xpi` | Browser extension package for Mozilla Firefox (`v1.2.2`). |
-| `CosmoDownloader-Firefox-Extension-v1.2.2.zip` | Browser extension archive for upload to addons.mozilla.org (AMO). |
 
 ---
 
