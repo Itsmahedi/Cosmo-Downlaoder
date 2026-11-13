@@ -208,9 +208,10 @@ impl CosmoDownloaderApp {
                 })
                 .with_download_wake_callback(move || {
                     ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
-                    ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(460.0, 390.0)));
-                    ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Title("New Download".to_string()));
-                    ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Resizable(false));
+                    ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 400.0)));
+                    ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(Vec2::new(500.0, 360.0)));
+                    ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Title("Download File Info".to_string()));
+                    ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Resizable(true));
                     ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop));
                     ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
                     ctx_wake_dl.send_viewport_cmd(egui::ViewportCommand::Visible(true));
@@ -1209,8 +1210,10 @@ impl eframe::App for CosmoDownloaderApp {
             self.active_popup_task_id = None;
             self.show_add_dialog = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
-            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 330.0)));
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 400.0)));
+            ctx.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(Vec2::new(500.0, 360.0)));
             ctx.send_viewport_cmd(egui::ViewportCommand::Title("Download File Info".to_string()));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Resizable(true));
             ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop));
             ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
@@ -1232,8 +1235,10 @@ impl eframe::App for CosmoDownloaderApp {
                 self.active_popup_task_id = None;
                 self.show_add_dialog = true;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(true));
-                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 330.0)));
+                ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(Vec2::new(560.0, 400.0)));
+                ctx.send_viewport_cmd(egui::ViewportCommand::MinInnerSize(Vec2::new(500.0, 360.0)));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Title("Download File Info".to_string()));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Resizable(true));
                 ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(egui::WindowLevel::AlwaysOnTop));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
                 ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
@@ -1376,7 +1381,7 @@ impl eframe::App for CosmoDownloaderApp {
         // Standalone Popup File Info Mode
         if self.is_popup_mode {
             egui::CentralPanel::default()
-                .frame(egui::Frame::none().fill(pal.surface).inner_margin(Margin::same(20.0)))
+                .frame(egui::Frame::none().fill(pal.surface).inner_margin(Margin::symmetric(20.0, 16.0)))
                 .show(ctx, |ui| {
                     let mut dlg_state = AddDialogState {
                         url: &mut self.add_url,
@@ -1394,7 +1399,7 @@ impl eframe::App for CosmoDownloaderApp {
                         show_notes_expanded: &mut self.show_notes_expanded,
                         show_advanced_expanded: &mut self.show_advanced_add,
                     };
-                    let outcome = render_add_download_dialog(ui, pal, &mut dlg_state);
+                    let outcome = render_add_download_dialog(ui, pal, &mut dlg_state, self.logo_texture.as_ref());
 
                     if outcome.url_changed {
                         self.add_error_message = None;
@@ -1865,7 +1870,7 @@ impl eframe::App for CosmoDownloaderApp {
                         show_notes_expanded: &mut self.show_notes_expanded,
                         show_advanced_expanded: &mut self.show_advanced_add,
                     };
-                    let outcome = render_add_download_dialog(ui, pal_refresh, &mut dlg_state);
+                    let outcome = render_add_download_dialog(ui, pal_refresh, &mut dlg_state, self.logo_texture.as_ref());
                     if outcome.url_changed {
                         self.add_error_message = None;
                         if let Some(c) = Category::from_name(&self.add_category) {

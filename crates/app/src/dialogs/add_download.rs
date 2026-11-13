@@ -38,6 +38,7 @@ pub fn render_add_download_dialog(
     ui: &mut egui::Ui,
     pal: &ThemeColors,
     state: &mut AddDialogState<'_>,
+    logo_tex: Option<&egui::TextureHandle>,
 ) -> AddDialogOutcome {
     let mut outcome = AddDialogOutcome {
         start_now: false,
@@ -53,7 +54,16 @@ pub fn render_add_download_dialog(
     // 0. Header (Logo + "New download" + Close button)
     ui.horizontal(|ui| {
         let (rect, _response) = ui.allocate_exact_size(Vec2::splat(18.0), egui::Sense::hover());
-        icons::draw_logo(ui.painter(), rect, pal.accent);
+        if let Some(tex) = logo_tex {
+            ui.painter().image(
+                tex.id(),
+                rect,
+                Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                Color32::WHITE,
+            );
+        } else {
+            icons::draw_logo(ui.painter(), rect, pal.accent);
+        }
         ui.label(
             egui::RichText::new("New download")
                 .size(15.0)
@@ -277,57 +287,33 @@ pub fn render_add_download_dialog(
 
     ui.add_space(shapes::S1);
 
+    // Checkbox (custom square checkbox matching Image 1 & Download_popup.html)
     let remember_label = format!("Use this folder for {} next time", state.category.to_lowercase());
-    ui.checkbox(
-        state.remember_category,
-        egui::RichText::new(remember_label).size(12.0).color(pal.muted),
-    );
-
     ui.horizontal(|ui| {
-        let adv_label = if *state.show_advanced_expanded {
-            "Hide advanced"
-        } else {
-            "Advanced options"
-        };
-        if ui.button(egui::RichText::new(adv_label).size(12.0).color(pal.accent)).clicked() {
-            *state.show_advanced_expanded = !*state.show_advanced_expanded;
+        let (rect, resp) = ui.allocate_exact_size(Vec2::splat(16.0), egui::Sense::click());
+        if resp.clicked() {
+            *state.remember_category = !*state.remember_category;
         }
-        if !*state.show_notes_expanded && state.description.trim().is_empty() {
-            ui.add_space(shapes::S2);
-            if ui.button(egui::RichText::new("Add a note").size(12.0).color(pal.accent)).clicked() {
-                *state.show_notes_expanded = true;
-            }
+        let bg = if *state.remember_category { pal.accent } else { pal.bg };
+        let border = if *state.remember_category { pal.accent } else { pal.line };
+        ui.painter().rect(rect, eframe::egui::Rounding::same(3.0), bg, Stroke::new(1.2_f32, border));
+        if *state.remember_category {
+            let p1 = Pos2::new(rect.left() + 4.0, rect.center().y);
+            let p2 = Pos2::new(rect.left() + 6.5, rect.bottom() - 4.0);
+            let p3 = Pos2::new(rect.right() - 3.5, rect.top() + 4.5);
+            ui.painter().line_segment([p1, p2], Stroke::new(1.8_f32, pal.on_accent));
+            ui.painter().line_segment([p2, p3], Stroke::new(1.8_f32, pal.on_accent));
+        }
+        let text_resp = ui.add(
+            egui::Label::new(egui::RichText::new(remember_label).size(12.5).color(pal.muted))
+                .sense(egui::Sense::click()),
+        );
+        if text_resp.clicked() {
+            *state.remember_category = !*state.remember_category;
         }
     });
 
-    if *state.show_advanced_expanded {
-        ui.add_space(shapes::S1);
-        ui.horizontal(|ui| {
-            ui.label(egui::RichText::new("Connections:").size(12.0).color(pal.muted));
-            ui.add(
-                egui::DragValue::new(state.connections)
-                    .range(1..=32)
-                    .speed(0.2),
-            );
-            ui.add_space(shapes::S2);
-            ui.label(egui::RichText::new("Speed limit (KB/s):").size(12.0).color(pal.muted));
-            ui.add(
-                egui::DragValue::new(state.speed_limit_kb)
-                    .range(0..=1_000_000)
-                    .speed(10),
-            );
-        });
-        ui.label(egui::RichText::new("Expected SHA-256 (optional)").size(12.0).color(pal.muted));
-        ui.add(
-            egui::TextEdit::singleline(state.checksum)
-                .hint_text("64-char hex checksum")
-                .desired_width(ui.available_width())
-                .min_size(Vec2::new(ui.available_width(), shapes::CONTROL_HEIGHT))
-                .margin(Margin::symmetric(10.0, 7.0)),
-        );
-    }
-
-    if *state.show_notes_expanded || !state.description.trim().is_empty() {
+    if !state.description.trim().is_empty() {
         ui.add_space(shapes::S1);
         ui.label(egui::RichText::new("Note").size(12.0).color(pal.muted));
         ui.add(

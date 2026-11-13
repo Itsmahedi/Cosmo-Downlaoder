@@ -159,11 +159,10 @@ pub fn run() -> eframe::Result<()> {
     if is_popup_arg {
         viewport = viewport
             .with_app_id("cosmo-dialog")
-            .with_title("New Download")
-            .with_inner_size([460.0, 390.0])
-            .with_min_inner_size([460.0, 390.0])
-            .with_max_inner_size([460.0, 390.0])
-            .with_resizable(false)
+            .with_title("Download File Info")
+            .with_inner_size([560.0, 400.0])
+            .with_min_inner_size([500.0, 360.0])
+            .with_resizable(true)
             .with_visible(true)
             .with_active(true)
             .with_always_on_top();

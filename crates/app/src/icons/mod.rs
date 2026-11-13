@@ -4,30 +4,22 @@ use eframe::egui::{pos2, vec2, Color32, Painter, Rect, Rounding, Stroke};
 // Cosmo Downloader Vector Icons (1.6-weight Line Icons matching HTML symbols)
 // ============================================================================
 
-/// Custom Minimalist Logo Mark (for dialogs/tray)
+/// Custom Minimalist Logo Mark (for dialogs/tray) - Circular Cosmic Emblem
 pub fn draw_logo(painter: &Painter, rect: Rect, color: Color32) {
-    let w = rect.width();
-    let h = rect.height();
-    let bar_h = (h * 0.22).max(2.0);
-    let r = Rounding::same(bar_h * 0.5);
+    let center = rect.center();
+    let radius = (rect.width().min(rect.height()) * 0.5) - 0.5;
 
-    let top_rect = Rect::from_min_size(
-        pos2(rect.left() + w * 0.09, rect.top() + h * 0.19),
-        vec2(w * 0.82, bar_h),
+    let bg_color = Color32::from_rgba_premultiplied(
+        ((color.r() as f32) * 0.25) as u8,
+        ((color.g() as f32) * 0.25) as u8,
+        ((color.b() as f32) * 0.25) as u8,
+        255,
     );
-    painter.rect_filled(top_rect, r, color);
+    painter.circle_filled(center, radius, bg_color);
+    painter.circle_stroke(center, radius, Stroke::new(1.4_f32, color));
 
-    let bot_color = Color32::from_rgba_premultiplied(
-        ((color.r() as f32) * 0.55) as u8,
-        ((color.g() as f32) * 0.55) as u8,
-        ((color.b() as f32) * 0.55) as u8,
-        ((color.a() as f32) * 0.55) as u8,
-    );
-    let bot_rect = Rect::from_min_size(
-        pos2(rect.left() + w * 0.09, rect.top() + h * 0.59),
-        vec2(w * 0.44, bar_h),
-    );
-    painter.rect_filled(bot_rect, r, bot_color);
+    let arrow_rect = Rect::from_center_size(center, vec2(radius * 1.3, radius * 1.3));
+    draw_download(painter, arrow_rect, color);
 }
 
 #[inline]
