@@ -1,4 +1,4 @@
-# Cosmo Downloader v1.2.2
+# Cosmo Downloader v1.2.3
 
 A fast, multi-segment desktop download manager for **Windows 10 and Windows 11**, paired with browser extensions for Chrome, Microsoft Edge, Brave, Opera, and Mozilla Firefox.
 
