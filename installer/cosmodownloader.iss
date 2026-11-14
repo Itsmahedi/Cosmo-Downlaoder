@@ -2,8 +2,8 @@
 ; Cosmo Downloader Windows Setup
 
 #define MyAppName "Cosmo Downloader"
-#define MyAppVersion "1.2.4"
-#define MyAppShortVer "v1.2.4"
+#define MyAppVersion "1.2.5"
+#define MyAppShortVer "v1.2.5"
 #define MyAppPublisher "Mahedi"
 #define MyAppExeName "CosmoDownloader.exe"
 #define MyCliExeName "cosmodownloader-cli.exe"
@@ -17,7 +17,7 @@ AppVerName={#MyAppName} {#MyAppShortVer}
 UninstallDisplayName={#MyAppName}
 UninstallDisplayIcon={app}\icon.ico
 AppPublisher={#MyAppPublisher}
-VersionInfoVersion=1.2.4.0
+VersionInfoVersion=1.2.5.0
 VersionInfoTextVersion={#MyAppVersion}
 DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
@@ -25,7 +25,7 @@ AllowNoIcons=yes
 OutputDir=dist
 OutputBaseFilename=CosmoDownloader-Setup-{#MyAppShortVer}
 SetupIconFile=icon.ico
-Compression=lzma2/ultra64
+Compression=lzma2/fast
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
@@ -45,15 +45,15 @@ Name: "startupicon"; Description: "Start Cosmo Downloader automatically with Win
 Name: "registerbrowsers"; Description: "Register browser extension bridge (Chrome, Brave, Edge, Opera & Firefox)"; GroupDescription: "Browser Integration:"
 
 [Files]
-Source: "..\target\release\CosmoDownloader.exe"; DestDir: "{app}"; Flags: ignoreversion restartreplace
-Source: "..\target\release\cosmodownloader-cli.exe"; DestDir: "{app}"; Flags: ignoreversion restartreplace
-Source: "..\target\release\cosmodownloader-host.exe"; DestDir: "{app}"; Flags: ignoreversion restartreplace
-Source: "..\target\release\rustget.exe"; DestDir: "{app}"; Flags: ignoreversion restartreplace
-Source: "..\target\release\rustget-host.exe"; DestDir: "{app}"; Flags: ignoreversion restartreplace
-Source: "..\target\release\libunwind.dll"; DestDir: "{app}"; Flags: ignoreversion restartreplace skipifsourcedoesntexist
+Source: "..\target\release\CosmoDownloader.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\target\release\cosmodownloader-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\target\release\cosmodownloader-host.exe"; DestDir: "{app}"; DestName: "cosmodownloader-host.tmp"; Flags: ignoreversion
+Source: "..\target\release\rustget.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\target\release\rustget-host.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\target\release\libunwind.dll"; DestDir: "{app}"; Flags: ignoreversion skipifsourcedoesntexist
 Source: "icon.ico"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\yt-dlp.exe"; DestDir: "{app}"; Flags: ignoreversion restartreplace
-Source: "..\ffmpeg.exe"; DestDir: "{app}"; Flags: ignoreversion restartreplace
+Source: "..\yt-dlp.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\ffmpeg.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 ; Native Messaging Manifests
 Source: "..\browser-extensions\Chrome-Edge-Brave-Opera\com.cosmodownloader.downloader.chrome.json"; DestDir: "{app}"; Flags: ignoreversion
@@ -306,6 +306,7 @@ end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
+  NeedsRestart := False;
   Result := '';
   if not WasAppRunningBeforeInstall then
     WasAppRunningBeforeInstall := IsCosmoGuiRunning();
@@ -324,10 +325,18 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
-  MainExe: String;
+  MainExe, TempHost, FinalHost: String;
 begin
   if CurStep = ssPostInstall then
   begin
+    TempHost := ExpandConstant('{app}\cosmodownloader-host.tmp');
+    FinalHost := ExpandConstant('{app}\cosmodownloader-host.exe');
+    if FileExists(TempHost) then
+    begin
+      FileCopy(TempHost, FinalHost, False);
+      DeleteFile(TempHost);
+    end;
+
     // Under silent/verysilent updates, automatically relaunch if the app was running prior to update.
     if WizardSilent() and WasAppRunningBeforeInstall then
     begin

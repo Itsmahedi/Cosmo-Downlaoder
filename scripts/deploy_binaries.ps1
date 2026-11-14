@@ -145,6 +145,12 @@ try {
         Copy-Item -Path $iconSrc -Destination (Join-Path $targetInstallDir "icon.ico") -Force
     }
 
+    # Copy libunwind.dll if present as a fallback
+    $unwindSrc = Join-Path $sourceDir "libunwind.dll"
+    if (Test-Path $unwindSrc) {
+        Copy-Item -Path $unwindSrc -Destination (Join-Path $targetInstallDir "libunwind.dll") -Force
+    }
+
     # Copy extension folders and manifests
     $extSrc = Join-Path $RootDir "browser-extensions"
     $chromeDest = Join-Path $targetInstallDir "Browser-Extensions\Chrome-Edge-Brave-Opera"

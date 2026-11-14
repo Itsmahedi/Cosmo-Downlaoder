@@ -15,6 +15,7 @@ pub struct SettingsViewState<'a> {
     pub proxy_url: &'a mut String,
     pub clipboard_monitor: &'a mut bool,
     pub notifications_enabled: &'a mut bool,
+    pub open_main_on_download_start: &'a mut bool,
     pub dont_show_complete_dialog: &'a mut bool,
     pub minimize_to_tray: &'a mut bool,
     pub show_tray_icon: &'a mut bool,
@@ -108,6 +109,8 @@ pub fn render_settings_dialog(
         ui.checkbox(state.clipboard_monitor, "Catch links from clipboard automatically");
         ui.add_space(shapes::S1);
         ui.checkbox(state.notifications_enabled, "Show desktop notifications on completion or error");
+        ui.add_space(shapes::S1);
+        ui.checkbox(state.open_main_on_download_start, "Open the main window when a download starts");
         ui.add_space(shapes::S1);
         ui.checkbox(state.dont_show_complete_dialog, "Hide 'Download Complete' popup window");
         ui.add_space(shapes::S1);

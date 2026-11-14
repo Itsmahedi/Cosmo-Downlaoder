@@ -18,6 +18,9 @@ Copy-Item "installer\dist\RustGet-Setup-2.0.0.exe" -Destination (Join-Path $dist
 # 2. Copy Portable Dir
 Write-Host "[*] Copying Portable binaries..."
 Copy-Item "installer\dist\RustGet-v2.0.0-windows-x64\*" -Destination (Join-Path $distRoot "Portable") -Recurse
+if (Test-Path "target\release\libunwind.dll") {
+    Copy-Item "target\release\libunwind.dll" -Destination (Join-Path $distRoot "Portable\libunwind.dll") -Force
+}
 
 # Copy Manifests to Portable root
 Copy-Item "extension\com.rustget.downloader.chrome.json" -Destination (Join-Path $distRoot "Portable\com.rustget.downloader.chrome.json")

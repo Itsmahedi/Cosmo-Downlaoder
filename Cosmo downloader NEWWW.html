@@ -15,7 +15,7 @@
   --danger:#d93025;
   --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px;
   --r-sm:6px; --r:10px; --h:34px;
-  --font:'Geist',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --font:'Geist','Segoe UI','Nirmala UI','Segoe UI Historic','Microsoft YaHei UI','Yu Gothic UI','Malgun Gothic','Segoe UI Emoji','Segoe UI Symbol',sans-serif;
   --t-body:14px; --t-small:12px; --t-title:16px;
   --ease:160ms ease-out;
   --cols:36px minmax(0,1fr) 92px 170px 100px 108px;
@@ -71,7 +71,7 @@ button{cursor:pointer}
 
 /* ---------- main window ---------- */
 .app{display:grid;grid-template-rows:auto auto auto 1fr auto;height:580px}
-.title{display:flex;align-items:center;height:36px;background:var(--raise);border-bottom:1px solid var(--line);padding-left:var(--s3);gap:var(--s2);user-select:none}
+.title{flex:0 0 36px;display:flex;align-items:center;height:36px;background:var(--raise);border-bottom:1px solid var(--line);padding-left:var(--s3);gap:var(--s2);user-select:none}
 .title img{width:18px;height:18px;display:block}
 .title b{font-weight:500;font-size:var(--t-small);flex:1}
 .wc{display:flex;height:100%}
@@ -163,22 +163,19 @@ button{cursor:pointer}
 .mf{padding:var(--s2) var(--s3);text-align:center;font-size:var(--t-small);color:var(--muted)}
 
 /* ---------- Download File Info panel ---------- */
-.dw{width:540px;max-width:100%}
-.dlb{display:flex;flex-direction:column;gap:var(--s4);padding:var(--s5)}
-.fs{display:flex;align-items:center;gap:var(--s3);padding-bottom:var(--s3);border-bottom:1px solid var(--line)}
+.dw{width:560px;height:380px;max-width:100%;min-width:560px;min-height:380px;max-height:380px;display:flex;flex-direction:column;box-sizing:border-box}
+.dlb{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;padding:20px 24px 16px;box-sizing:border-box}
+.fs{display:flex;align-items:center;gap:var(--s3);height:48px;padding-bottom:0;border-bottom:1px solid var(--line);box-sizing:border-box;margin-bottom:16px}
 .fi{width:36px;height:36px;flex:none;display:grid;place-items:center;border-radius:var(--r-sm);background:var(--accent-soft);color:var(--accent)}
 .fs .tx{min-width:0}
 .fs b{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fs b.bad{color:var(--danger)}
 .fs .meta{display:block}
-.lb{display:block;font-size:var(--t-small);color:var(--muted);margin:0 0 var(--s1)}
-.sv{display:grid;grid-template-columns:140px minmax(0,1fr);gap:var(--s3)}
+.lb{display:block;font-size:var(--t-small);line-height:16px;color:var(--muted);margin:0 0 4px}
+.sv{display:grid;grid-template-columns:140px minmax(0,1fr);gap:12px;align-items:start;height:54px;margin-bottom:12px}
 .sv>div{min-width:0}
-.pr{display:flex;gap:var(--s2)}
+.pr{display:flex;gap:var(--s2);align-items:center}
 .pr .field,#dlLink{min-width:0;text-overflow:ellipsis}
-.rm{display:flex;align-items:center;gap:var(--s2);font-size:var(--t-small);color:var(--muted)}
-.rm input{accent-color:var(--accent);margin:0}
-.dlf{display:flex;justify-content:flex-end;gap:var(--s2);padding:var(--s3) var(--s5);border-top:1px solid var(--line)}
 select.field{
   height:var(--h);
   border:1px solid var(--line);
@@ -191,8 +188,24 @@ select.field{
   width:100%;
   cursor:pointer;
   box-sizing:border-box;
+  margin:0;
 }
 select.field:focus{border-color:var(--accent);outline:none}
+input.field{
+  height:var(--h);
+  box-sizing:border-box;
+  margin:0;
+}
+.btn.icon{
+  height:var(--h);
+  width:34px;
+  box-sizing:border-box;
+  margin:0;
+  flex:none;
+}
+.rm{display:flex;align-items:center;gap:var(--s2);font-size:var(--t-small);color:var(--muted);height:20px}
+.rm input{accent-color:var(--accent);margin:0}
+.dlf{flex:0 0 59px;height:59px;box-sizing:border-box;display:flex;justify-content:flex-end;align-items:center;gap:var(--s2);padding:12px 24px;border-top:1px solid var(--line)}
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -306,9 +319,9 @@ select.field:focus{border-color:var(--accent);outline:none}
       <h2>4 · Download File Info popup</h2>
       <input type="hidden" id="dlTitle" value="আমার সোনার বাংলা - পর্ব ১">
       <div class="win dw" id="dw">
-        <div class="title"><img data-logo alt=""><b>New download</b><div class="wc"><button type="button" class="x" id="dlX" aria-label="Close"><svg class="i"><use href="#close"/></svg></button></div></div>
+        <div class="title"><img data-logo alt=""><b>Download File Info</b><div class="wc"><button type="button" class="x" id="dlX" aria-label="Close"><svg class="i"><use href="#close"/></svg></button></div></div>
         <div class="dlb">
-          <div><label class="lb" for="dlLink">Link</label><input class="field" id="dlLink" type="url" spellcheck="false" placeholder="Paste a link" value="https://www.youtube.com/watch?v=RlPNh_PBZb4"></div>
+          <div style="height:54px;display:flex;flex-direction:column;gap:4px;margin-bottom:12px;"><label class="lb" for="dlLink">Link</label><input class="field" id="dlLink" type="url" spellcheck="false" placeholder="Paste a link" value="https://www.youtube.com/watch?v=RlPNh_PBZb4"></div>
           <div class="fs"><div class="fi"><svg class="i"><use id="dlIco" href="#video"/></svg></div><div class="tx"><b id="dlName"></b><span class="meta" id="dlMeta"></span></div></div>
           <div class="sv">
             <div><label class="lb" for="dlCat">Category</label><select class="field" id="dlCat"><option>Video</option><option>Music</option><option>Documents</option><option>Compressed</option><option>Programs</option><option>Other</option></select></div>

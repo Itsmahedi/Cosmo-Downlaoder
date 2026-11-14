@@ -28,6 +28,7 @@ pub fn render_menu_bar(
     has_selection: bool,
     clipboard_enabled: bool,
     selected_category: CategoryFilter,
+    hover_menu: Option<&str>,
 ) -> MenuBarAction {
     let mut action = MenuBarAction::default();
 
@@ -46,26 +47,34 @@ pub fn render_menu_bar(
     );
     inner.set_clip_rect(bar_rect);
 
-    // Flatten menu button styling to match .menubar .m (transparent, hover --raise)
+    // Flatten menu button styling to match .menubar .m:
+    // height 28px, horizontal padding 12px, corner radius 6px, background transparent, hover background = raise color
     {
         let vis = inner.visuals_mut();
         vis.widgets.inactive.bg_fill = Color32::TRANSPARENT;
         vis.widgets.inactive.weak_bg_fill = Color32::TRANSPARENT;
         vis.widgets.inactive.bg_stroke = Stroke::NONE;
+        vis.widgets.inactive.rounding = shapes::R_SM;
+
         vis.widgets.hovered.bg_fill = pal.raise;
         vis.widgets.hovered.weak_bg_fill = pal.raise;
         vis.widgets.hovered.bg_stroke = Stroke::NONE;
+        vis.widgets.hovered.rounding = shapes::R_SM;
+
         vis.widgets.open.bg_fill = pal.raise;
         vis.widgets.open.weak_bg_fill = pal.raise;
         vis.widgets.open.bg_stroke = Stroke::NONE;
-        vis.button_frame = false;
+        vis.widgets.open.rounding = shapes::R_SM;
+
+        vis.button_frame = true;
     }
-    inner.spacing_mut().button_padding = Vec2::new(12.0, 5.0);
+    inner.spacing_mut().interact_size.y = 28.0;
+    inner.spacing_mut().button_padding = Vec2::new(12.0, 4.0);
     inner.spacing_mut().item_spacing.x = 2.0;
 
     inner.add_space(8.0);
 
-    inner.menu_button(egui::RichText::new("File").size(13.5).color(pal.text), |ui| {
+    let file_btn = inner.menu_button(egui::RichText::new("File").size(13.5).color(pal.text), |ui| {
         ui.set_min_width(170.0);
         if ui.button("New download...").clicked() {
             action.add_download = true;
@@ -77,6 +86,17 @@ pub fn render_menu_bar(
             ui.close_menu();
         }
     });
+    if hover_menu == Some("File") {
+        inner.painter().rect_filled(file_btn.response.rect, shapes::R_SM, pal.raise);
+        let font = egui::FontId::proportional(13.5);
+        inner.painter().text(
+            file_btn.response.rect.center(),
+            egui::Align2::CENTER_CENTER,
+            "File",
+            font,
+            pal.text,
+        );
+    }
 
     inner.menu_button(egui::RichText::new("Downloads").size(13.5).color(pal.text), |ui| {
         ui.set_min_width(180.0);
@@ -166,8 +186,8 @@ pub fn render_menu_bar(
     let text_w = inner.painter().layout_no_wrap(label.to_string(), font.clone(), pal.text).size().x;
     let btn_w = text_w + 18.0 + 8.0 + 24.0;
     let btn_rect = Rect::from_min_size(
-        pos2(bar_rect.right() - 8.0 - btn_w, bar_rect.center().y - 15.0),
-        Vec2::new(btn_w, 30.0),
+        pos2(bar_rect.right() - 8.0 - btn_w, bar_rect.center().y - 14.0),
+        Vec2::new(btn_w, 28.0),
     );
     let resp = inner.interact(btn_rect, inner.id().with("theme_toggle_btn"), egui::Sense::click());
     if resp.hovered() {

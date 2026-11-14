@@ -75,3 +75,53 @@ pub fn configure_visuals(ctx: &egui::Context, is_dark: bool) {
 pub fn configure_m3_visuals(ctx: &egui::Context) {
     configure_visuals(ctx, true);
 }
+
+/// Configures UI font definitions with required fallback fonts for non-Latin scripts (Bengali,
+/// Hindi, Arabic, Japanese, Korean, Chinese, Emoji, Symbols).
+/// Keeps the app font first, then in strict order:
+/// "Segoe UI", "Nirmala UI", "Segoe UI Historic", "Microsoft YaHei UI", "Yu Gothic UI",
+/// "Malgun Gothic", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif.
+pub fn configure_fonts(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+
+    #[cfg(windows)]
+    let font_specs: &[(&str, &[&str])] = &[
+        ("Segoe UI", &["segoeui.ttf"]),
+        ("Nirmala UI", &["Nirmala.ttc", "NirmalaB.ttc", "NirmalaS.ttc"]),
+        ("Segoe UI Historic", &["seguihis.ttf"]),
+        ("Microsoft YaHei UI", &["msyh.ttc", "msyhbd.ttc", "msyhl.ttc"]),
+        ("Yu Gothic UI", &["YuGothR.ttc", "YuGothM.ttc", "YuGothB.ttc", "yugoth.ttc"]),
+        ("Malgun Gothic", &["malgun.ttf", "malgunbd.ttf"]),
+        ("Segoe UI Emoji", &["seguiemj.ttf"]),
+        ("Segoe UI Symbol", &["seguisym.ttf"]),
+    ];
+
+    #[cfg(windows)]
+    {
+        let windir = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".to_string());
+        let fonts_dir = std::path::Path::new(&windir).join("Fonts");
+
+        for (family_name, file_candidates) in font_specs {
+            for filename in *file_candidates {
+                let font_path = fonts_dir.join(filename);
+                if font_path.exists() {
+                    if let Ok(data) = std::fs::read(&font_path) {
+                        fonts.font_data.insert(
+                            family_name.to_string(),
+                            egui::FontData::from_owned(data),
+                        );
+                        if let Some(prop) = fonts.families.get_mut(&egui::FontFamily::Proportional) {
+                            prop.push(family_name.to_string());
+                        }
+                        if let Some(mono) = fonts.families.get_mut(&egui::FontFamily::Monospace) {
+                            mono.push(family_name.to_string());
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    ctx.set_fonts(fonts);
+}

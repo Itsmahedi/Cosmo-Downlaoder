@@ -340,6 +340,7 @@ fn render_table_row(
             .layout(egui::Layout::left_to_right(egui::Align::Center)),
     );
     name_ui.set_clip_rect(text_rect);
+    name_ui.set_max_width(text_rect.width());
     name_ui.add(
         egui::Label::new(
             egui::RichText::new(&record.filename)

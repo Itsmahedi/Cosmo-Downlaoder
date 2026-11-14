@@ -5,6 +5,26 @@ All notable changes to Cosmo Downloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.5] - 2026-11-14
+
+### Fixed
+- **Standalone Portability & Toolchain Dependency:** Statically linked `libunwind` and C runtime (`+crt-static`) across all binaries (`CosmoDownloader.exe`, `cosmodownloader-cli.exe`, `cosmodownloader-host.exe`), resolving startup failure on target PCs where `libunwind.dll` was missing.
+- **Download Info Popup Dialog Behavior:**
+  - Closing the download info popup dialog via Cancel closes only the dialog without opening or restoring the main window.
+  - Pressing "Start download" starts the transfer, closes the dialog, and displays a system notification without stealing focus from the main window.
+  - Added user setting: "Open the main window when a download starts" (default: OFF).
+  - Preserved main window geometry and focus when invoked from the "+ Add URL" button.
+
+## [1.2.4] - 2026-11-13
+
+### Fixed
+- **UI Alignment & Layout:** Eliminated button clipping in popup dialog, aligned design elements with reference UI specs, and ensured proper circular logo rendering.
+
+## [1.2.3] - 2026-11-13
+
+### Changed
+- **Modern Popup Design:** Integrated modern theme styling and refined download confirmation workflow.
+
 ## [1.2.2] - 2026-11-13
 
 ### Changed

@@ -1,6 +1,6 @@
 use eframe::egui::{self, pos2, Color32, Pos2, Rect, TextureHandle, Vec2};
 use crate::icons;
-use crate::theme::ThemeColors;
+use crate::theme::{shapes, ThemeColors};
 
 pub struct TitleBarAction {
     pub minimize: bool,
@@ -22,23 +22,34 @@ pub fn render_title_bar(
     };
 
     let bar_rect = ui.allocate_space(Vec2::new(ui.available_width(), 36.0)).1;
-    ui.painter().rect_filled(bar_rect, 0.0, pal.raise);
+    let is_dialog = title == "Download File Info" || title == "New download";
+    let rounding = if is_dialog {
+        eframe::egui::Rounding { nw: shapes::R.nw, ne: shapes::R.ne, sw: 0.0, se: 0.0 }
+    } else {
+        eframe::egui::Rounding::ZERO
+    };
+    ui.painter().rect_filled(bar_rect, rounding, pal.raise);
     ui.painter().rect_filled(
         Rect::from_min_max(Pos2::new(bar_rect.left(), bar_rect.bottom() - 1.0), bar_rect.max),
         0.0,
         pal.line,
     );
 
-    let wc_width = 46.0 * 3.0;
+    let buttons: &[&str] = if is_dialog {
+        &["close"]
+    } else {
+        &["min", "max", "close"]
+    };
+    let wc_width = 46.0 * (buttons.len() as f32);
     let drag_rect = Rect::from_min_max(
         bar_rect.min,
         Pos2::new((bar_rect.right() - wc_width).max(bar_rect.left()), bar_rect.bottom()),
     );
-    let drag_resp = ui.interact(drag_rect, ui.id().with("title_drag"), egui::Sense::click_and_drag());
-    if drag_resp.drag_started() {
+    let drag_resp = ui.interact(drag_rect, ui.id().with((title, "title_drag")), egui::Sense::click_and_drag());
+    if !is_dialog && drag_resp.drag_started() {
         ctx.send_viewport_cmd(egui::ViewportCommand::StartDrag);
     }
-    if drag_resp.double_clicked() {
+    if !is_dialog && drag_resp.double_clicked() {
         action.toggle_maximize = true;
     }
 
@@ -66,13 +77,18 @@ pub fn render_title_bar(
 
     // Window control buttons (46x36 each)
     let mut x = bar_rect.right() - wc_width;
-    for (idx, kind) in ["min", "max", "close"].iter().enumerate() {
+    for (idx, kind) in buttons.iter().enumerate() {
         let btn_rect = Rect::from_min_size(pos2(x, bar_rect.top()), Vec2::new(46.0, 36.0));
-        let resp = ui.interact(btn_rect, ui.id().with(("wc_btn", idx)), egui::Sense::click());
+        let resp = ui.interact(btn_rect, ui.id().with((title, "wc_btn", idx)), egui::Sense::click());
         let hovered = resp.hovered();
         if *kind == "close" {
             if hovered {
-                ui.painter().rect_filled(btn_rect, 0.0, pal.danger);
+                let btn_rounding = if is_dialog {
+                    eframe::egui::Rounding { nw: 0.0, ne: shapes::R.ne, sw: 0.0, se: 0.0 }
+                } else {
+                    eframe::egui::Rounding::ZERO
+                };
+                ui.painter().rect_filled(btn_rect, btn_rounding, pal.danger);
             }
             let icon_color = if hovered { Color32::WHITE } else { pal.muted };
             icons::draw_close(ui.painter(), Rect::from_center_size(btn_rect.center(), Vec2::splat(14.0)), icon_color);

@@ -55,6 +55,7 @@ extern "system" {
     pub fn CreateEventA(lpEventAttributes: *mut std::ffi::c_void, bManualReset: i32, bInitialState: i32, lpName: *const u8) -> *mut std::ffi::c_void;
     pub fn OpenEventA(dwDesiredAccess: u32, bInheritHandle: i32, lpName: *const u8) -> *mut std::ffi::c_void;
     pub fn SetEvent(hEvent: *mut std::ffi::c_void) -> i32;
+    pub fn ResetEvent(hEvent: *mut std::ffi::c_void) -> i32;
     pub fn WaitForSingleObject(hHandle: *mut std::ffi::c_void, dwMilliseconds: u32) -> u32;
     pub fn CloseHandle(hObject: *mut std::ffi::c_void) -> i32;
     pub fn GetLastError() -> u32;
@@ -109,6 +110,7 @@ pub fn init_shutdown_listener(ctx: &eframe::egui::Context) {
         std::thread::spawn(|| unsafe {
             let h = CreateEventA(std::ptr::null_mut(), 1, 0, SHUTDOWN_EVENT_NAME.as_ptr());
             if !h.is_null() {
+                ResetEvent(h);
                 WaitForSingleObject(h, u32::MAX);
                 SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
                 if let Some(c) = EGUI_CTX_FOR_SHUTDOWN.get() {
@@ -191,8 +193,8 @@ pub fn get_process_window() -> *mut std::ffi::c_void {
         }
 
         let titles = [
-            "New download\0",
             "Download File Info\0",
+            "New download\0",
             "Downloading - Cosmo Downloader\0",
             "Download complete\0",
             "Download Complete\0",
@@ -215,15 +217,12 @@ pub fn show_download_popup_window() {
     let hwnd = get_process_window();
     if !hwnd.is_null() {
         unsafe {
-            let screen_w = GetSystemMetrics(0);
-            let screen_h = GetSystemMetrics(1);
-            let w = 560;
-            let h = 310;
-            let x = if screen_w > w { (screen_w - w) / 2 } else { 100 };
-            let y = if screen_h > h { (screen_h - h) / 2 } else { 100 };
-            SetWindowPos(hwnd, HWND_TOPMOST, x, y, w, h, 0x0040);
+            let style = GetWindowLongW(hwnd, -16) as u32;
+            let new_style = (style & !0x00C00000) | 0x00040000;
+            SetWindowLongPtrW(hwnd, -16, new_style as isize);
             ShowWindow(hwnd, 9);
             ShowWindow(hwnd, 5);
+            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0020 | 0x0040);
             SetForegroundWindow(hwnd);
         }
     }
@@ -233,8 +232,12 @@ pub fn show_main_window() {
     let hwnd = get_process_window();
     if !hwnd.is_null() {
         unsafe {
+            let style = GetWindowLongW(hwnd, -16) as u32;
+            let new_style = (style & !0x00C00000) | 0x00040000;
+            SetWindowLongPtrW(hwnd, -16, new_style as isize);
             ShowWindow(hwnd, 9);
             ShowWindow(hwnd, 5);
+            SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0020 | 0x0040);
             SetForegroundWindow(hwnd);
         }
     }
@@ -244,9 +247,12 @@ pub fn make_popup_topmost() {
     let hwnd = get_process_window();
     if !hwnd.is_null() {
         unsafe {
+            let style = GetWindowLongW(hwnd, -16) as u32;
+            let new_style = (style & !0x00C00000) | 0x00040000;
+            SetWindowLongPtrW(hwnd, -16, new_style as isize);
             ShowWindow(hwnd, 9);
             ShowWindow(hwnd, 5);
-            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0040);
+            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0020 | 0x0040);
             SetForegroundWindow(hwnd);
         }
     }
@@ -256,7 +262,10 @@ pub fn remove_popup_topmost() {
     let hwnd = get_process_window();
     if !hwnd.is_null() {
         unsafe {
-            SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, 0x0001 | 0x0002);
+            let style = GetWindowLongW(hwnd, -16) as u32;
+            let new_style = (style & !0x00C00000) | 0x00040000;
+            SetWindowLongPtrW(hwnd, -16, new_style as isize);
+            SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0020 | 0x0040);
         }
     }
 }

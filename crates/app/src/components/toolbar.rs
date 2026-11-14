@@ -65,7 +65,7 @@ pub fn render_toolbar(
         action.options_clicked = true;
     }
 
-    // Right-aligned search box when width permits
+    // Right-aligned search box when width permits (standard field style: 34px height, 1px line border, 6px radius, accent border on focus)
     if inner.available_width() > 140.0 {
         inner.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.add_space(16.0);
@@ -78,14 +78,34 @@ pub fn render_toolbar(
                     search_query.clear();
                 }
             }
-            let search_w = ui.available_width().clamp(120.0, 220.0);
-            ui.add(
-                egui::TextEdit::singleline(search_query)
-                    .hint_text("Search downloads...")
-                    .desired_width(search_w)
-                    .min_size(Vec2::new(search_w, 30.0))
-                    .margin(egui::Margin::symmetric(10.0, 5.0)),
-            );
+            let search_w = ui.available_width().clamp(140.0, 220.0);
+            ui.scope(|ui| {
+                let vis = ui.visuals_mut();
+                vis.widgets.inactive.bg_fill = pal.bg;
+                vis.widgets.inactive.weak_bg_fill = pal.bg;
+                vis.widgets.inactive.bg_stroke = egui::Stroke::new(1.0_f32, pal.line);
+                vis.widgets.inactive.rounding = shapes::R_SM;
+
+                vis.widgets.hovered.bg_fill = pal.bg;
+                vis.widgets.hovered.weak_bg_fill = pal.bg;
+                vis.widgets.hovered.bg_stroke = egui::Stroke::new(1.0_f32, pal.line);
+                vis.widgets.hovered.rounding = shapes::R_SM;
+
+                vis.widgets.active.bg_fill = pal.bg;
+                vis.widgets.active.weak_bg_fill = pal.bg;
+                vis.widgets.active.bg_stroke = egui::Stroke::new(1.0_f32, pal.accent);
+                vis.widgets.active.rounding = shapes::R_SM;
+
+                vis.selection.stroke = egui::Stroke::new(1.0_f32, pal.accent);
+
+                ui.add(
+                    egui::TextEdit::singleline(search_query)
+                        .hint_text("Search downloads...")
+                        .desired_width(search_w)
+                        .min_size(Vec2::new(search_w, shapes::CONTROL_HEIGHT))
+                        .margin(egui::Margin::symmetric(10.0, 7.0)),
+                );
+            });
         });
     }
 

@@ -186,6 +186,8 @@ pub async fn fetch_video_title(bin: &Path, url: &str) -> Option<String> {
     const CREATE_NO_WINDOW: u32 = 0x08000000;
 
     let mut cmd = Command::new(bin);
+    cmd.env("PYTHONIOENCODING", "utf-8");
+    cmd.env("PYTHONUTF8", "1");
     cmd.args(["--print", "%(title)s", "--no-warnings", url]);
 
     #[cfg(windows)]
@@ -195,6 +197,8 @@ pub async fn fetch_video_title(bin: &Path, url: &str) -> Option<String> {
     if output.status.success() {
         let text = String::from_utf8_lossy(&output.stdout);
         let trimmed = text.lines().next()?.trim().to_string();
+        let codepoints: Vec<String> = trimmed.chars().map(|c| format!("U+{:04X}", c as u32)).collect();
+        info!("yt-dlp title '{}' code points: {}", trimmed, codepoints.join(" "));
         if !trimmed.is_empty() {
             return Some(trimmed);
         }
@@ -271,6 +275,8 @@ pub async fn download_streaming_video(
     args.push(url.to_string());
 
     let mut cmd = Command::new(bin);
+    cmd.env("PYTHONIOENCODING", "utf-8");
+    cmd.env("PYTHONUTF8", "1");
     cmd.args(&args);
 
     cmd.stdout(std::process::Stdio::piped());

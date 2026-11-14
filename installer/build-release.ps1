@@ -77,11 +77,32 @@ New-Item -ItemType Directory -Path $ExtDir | Out-Null
 $ExtFfDir = Join-Path $PortableDir "extension-firefox"
 New-Item -ItemType Directory -Path $ExtFfDir | Out-Null
 
+# Copy CosmoDownloader and legacy RustGet binaries
+$cosmoGui = Join-Path $TargetReleaseDir "CosmoDownloader.exe"
+$cosmoCli = Join-Path $TargetReleaseDir "cosmodownloader-cli.exe"
+$cosmoHost = Join-Path $TargetReleaseDir "cosmodownloader-host.exe"
+if (Test-Path $cosmoGui) { Copy-Item $cosmoGui -Destination "$PortableDir\" }
+if (Test-Path $cosmoCli) { Copy-Item $cosmoCli -Destination "$PortableDir\" }
+if (Test-Path $cosmoHost) { Copy-Item $cosmoHost -Destination "$PortableDir\" }
+
 Copy-Item $GuiBin -Destination "$PortableDir\"
 Copy-Item $CliBin -Destination "$PortableDir\"
 Copy-Item $HostBin -Destination "$PortableDir\"
 if (Test-Path (Join-Path $RootDir "yt-dlp.exe")) {
     Copy-Item (Join-Path $RootDir "yt-dlp.exe") -Destination "$PortableDir\"
+}
+if (Test-Path (Join-Path $RootDir "ffmpeg.exe")) {
+    Copy-Item (Join-Path $RootDir "ffmpeg.exe") -Destination "$PortableDir\"
+}
+
+# Ensure libunwind.dll is available in target/release and portable dir as fallback
+$unwindBin = Join-Path $TargetReleaseDir "libunwind.dll"
+if (-not (Test-Path $unwindBin) -and $llvmPkg) {
+    $cand = Join-Path $llvmPkg.FullName "libunwind.dll"
+    if (Test-Path $cand) { Copy-Item $cand -Destination $unwindBin -Force }
+}
+if (Test-Path $unwindBin) {
+    Copy-Item $unwindBin -Destination "$PortableDir\"
 }
 Copy-Item (Join-Path $ScriptDir "icon.ico") -Destination "$PortableDir\"
 Copy-Item (Join-Path $RootDir "LICENSE") -Destination "$PortableDir\"
@@ -125,12 +146,22 @@ if (-not $SkipInstaller) {
         Write-Host "[*] Compiling installer with $iscc..." -ForegroundColor Yellow
         Push-Location $ScriptDir
         try {
-            & $iscc "RustGet.iss"
-            if ($LASTEXITCODE -eq 0) {
-                $setupPath = Join-Path $DistDir "RustGet-Setup-2.0.0.exe"
-                Write-Host "[OK] Windows Installer successfully built at: $setupPath" -ForegroundColor Green
-            } else {
-                Write-Warning "Inno Setup compilation exited with code $LASTEXITCODE"
+            if (Test-Path "cosmodownloader.iss") {
+                & $iscc "cosmodownloader.iss"
+                if ($LASTEXITCODE -eq 0) {
+                    Write-Host "[OK] CosmoDownloader Windows Installer successfully built!" -ForegroundColor Green
+                } else {
+                    Write-Warning "Inno Setup compilation of cosmodownloader.iss exited with code $LASTEXITCODE"
+                }
+            }
+            if (Test-Path "RustGet.iss") {
+                & $iscc "RustGet.iss"
+                if ($LASTEXITCODE -eq 0) {
+                    $setupPath = Join-Path $DistDir "RustGet-Setup-2.0.0.exe"
+                    Write-Host "[OK] Windows Installer successfully built at: $setupPath" -ForegroundColor Green
+                } else {
+                    Write-Warning "Inno Setup compilation of RustGet.iss exited with code $LASTEXITCODE"
+                }
             }
         } finally {
             Pop-Location
